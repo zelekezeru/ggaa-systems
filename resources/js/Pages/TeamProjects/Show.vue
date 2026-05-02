@@ -8,7 +8,7 @@ import {
     ArrowLeftIcon, RectangleGroupIcon, UserGroupIcon, ClipboardDocumentListIcon,
     PaperClipIcon, ChatBubbleLeftRightIcon, BuildingOffice2Icon,
     PlusIcon, TrashIcon, ArrowUpTrayIcon, CheckIcon, ArrowPathIcon,
-    PencilSquareIcon, ClockIcon, CalendarIcon
+    PencilSquareIcon, ClockIcon, CalendarIcon, ArrowDownTrayIcon
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -385,10 +385,18 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                                             {{ f.uploader?.name }} · {{ fmtDate(f.created_at) }}
                                         </div>
                                     </div>
-                                    <button v-if="canManage || f.uploaded_by === $page.props.auth.user.id"
-                                        @click="deleteFile(f.id)" class="p-2 text-slate-300 hover:text-rose-500 transition-colors">
-                                        <TrashIcon class="h-5 w-5" />
-                                    </button>
+                                    <div class="flex items-center gap-1">
+                                        <a :href="route('team-projects.files.download', [project.id, f.id])" 
+                                           class="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                                           title="Download">
+                                            <ArrowDownTrayIcon class="h-5 w-5" />
+                                        </a>
+                                        <button v-if="canManage || f.uploaded_by === $page.props.auth.user.id"
+                                            @click="deleteFile(f.id)" class="p-2 text-slate-300 hover:text-rose-500 transition-colors"
+                                            title="Delete">
+                                            <TrashIcon class="h-5 w-5" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div v-else class="text-center py-20 bg-slate-50 dark:bg-slate-900/10 rounded-3xl">

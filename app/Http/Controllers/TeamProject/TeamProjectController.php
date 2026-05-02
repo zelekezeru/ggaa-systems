@@ -364,9 +364,18 @@ class TeamProjectController extends Controller
     private function authorizeMember(TeamProject $teamProject): void
     {
         $user = Auth::user();
+
+        // Admin, Manager, or Team Leader
         if ($user->can('manage team projects') || $teamProject->team_leader_id === $user->id) {
             return;
         }
+
+        // Assigned Client
+        if ($user->hasRole('Client') && $teamProject->client_id === $user->client_id) {
+            return;
+        }
+
+        // Active Team Member
         $isMember = $teamProject->activeMembers()->where('user_id', $user->id)->exists();
         abort_unless($isMember, 403);
     }

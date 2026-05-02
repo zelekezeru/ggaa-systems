@@ -191,6 +191,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Shared files
     Route::post('/team-projects/{teamProject}/files', [TeamProjectFileController::class, 'store'])->name('team-projects.files.store');
+    Route::get('/team-projects/{teamProject}/files/{file}/download', [TeamProjectFileController::class, 'download'])->name('team-projects.files.download');
     Route::delete('/team-projects/{teamProject}/files/{file}', [TeamProjectFileController::class, 'destroy'])->name('team-projects.files.destroy');
 
     // Internal team chat

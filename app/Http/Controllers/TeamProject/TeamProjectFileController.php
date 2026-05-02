@@ -35,6 +35,18 @@ class TeamProjectFileController extends Controller
         return back()->with('success', 'File uploaded.');
     }
 
+    public function download(TeamProject $teamProject, TeamProjectFile $file)
+    {
+        abort_unless($file->team_project_id === $teamProject->id, 404);
+        $this->authorizeMember($teamProject);
+
+        if (!Storage::disk('public')->exists($file->path)) {
+            abort(404, 'File not found on disk.');
+        }
+
+        return Storage::disk('public')->download($file->path, $file->original_name);
+    }
+
     public function destroy(TeamProject $teamProject, TeamProjectFile $file)
     {
         abort_unless($file->team_project_id === $teamProject->id, 404);
@@ -55,9 +67,18 @@ class TeamProjectFileController extends Controller
     private function authorizeMember(TeamProject $teamProject): void
     {
         $user = Auth::user();
+        
+        // Admin, Manager, or Team Leader
         if ($user->can('manage team projects') || $teamProject->team_leader_id === $user->id) {
             return;
         }
+
+        // Assigned Client
+        if ($user->hasRole('Client') && $teamProject->client_id === $user->client_id) {
+            return;
+        }
+
+        // Active Team Member
         $isMember = $teamProject->activeMembers()->where('user_id', $user->id)->exists();
         abort_unless($isMember, 403);
     }
