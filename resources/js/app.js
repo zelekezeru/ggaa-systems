@@ -3,7 +3,7 @@ import './bootstrap';
 
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import { createApp, h } from 'vue';
+import { createApp, h, watch } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 
 import Toast from 'vue-toastification';
@@ -12,20 +12,22 @@ import 'vue-toastification/dist/index.css';
 import { createI18n } from 'vue-i18n';
 import en from './locales/en.json';
 import am from './locales/am.json';
-import ar from './locales/ar.json';
+
+const RTL_LOCALES = ['am'];
+
+const initialLocale = localStorage.getItem('locale') || 'am';
 
 const i18n = createI18n({
     legacy: false, // Use Composition API mode
-    locale: localStorage.getItem('locale') || 'en',
+    locale: initialLocale,
     fallbackLocale: 'en',
     messages: {
         en,
-        am,
-        ar
+        am
     }
 });
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'GGAA-Systems';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

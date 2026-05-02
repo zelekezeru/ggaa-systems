@@ -32,15 +32,20 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
-                // Pass the user's unread notifications to Vue automatically
+                'user' => $request->user() ? array_merge($request->user()->toArray(), [
+                    'roles' => $request->user()->getRoleNames(),
+                    'permissions' => $request->user()->getAllPermissions()->pluck('name'),
+                ]) : null,
                 'notifications' => $request->user() ? $request->user()->unreadNotifications : null,
-                'roles' => $request->user() ? $request->user()->getRoleNames() : [],
             ],
+            // Lightweight badge counter — used by NotificationBell
+            'unread_notifications_count' => fn () => $request->user()
+                ? $request->user()->unreadNotifications()->count()
+                : 0,
             // Share flash messages globally
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
-                'error' => fn () => $request->session()->get('error'),
+                'error'   => fn () => $request->session()->get('error'),
                 'warning' => fn () => $request->session()->get('warning'),
             ],
         ];

@@ -16,6 +16,8 @@ return new class extends Migration
 
             $table->enum('status', ['Waiting on Client', 'To Do', 'In Review', 'Done'])->default('To Do');
             $table->date('due_date');
+            $table->string('document_name')->nullable();
+            $table->text('document_path')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->text('notes')->nullable();
 

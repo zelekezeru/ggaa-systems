@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
 
 class AdminClientController extends Controller
 {
@@ -17,7 +18,7 @@ class AdminClientController extends Controller
     {
         abort_unless(auth()->user()->hasAnyRole(['Super Admin', 'Branch Manager']), 403, 'Unauthorized access.');
 
-        $query = Client::with(['branch', 'assignedEmployee', 'serviceTypes']);
+        $query = Client::with(['branch', 'assignedEmployee', 'serviceTypes', 'user']);
 
         // Filtering by service type
         if ($request->has('service_type')) {
@@ -26,7 +27,23 @@ class AdminClientController extends Controller
             });
         }
 
-        $clients = $query->get();
+        $clients = $query->get()->map(function ($client) {
+            return [
+                'id' => $client->id,
+                'company_name' => $client->company_name,
+                'tin_number' => $client->tin_number,
+                'email' => $client->user?->email,
+                'sector' => $client->sector,
+                'branch_id' => $client->branch_id,
+                'assigned_employee_id' => $client->assigned_employee_id,
+                'complexity_score' => $client->complexity_score,
+                'status' => $client->status,
+                'logo_url' => $client->logo_url,
+                'branch' => $client->branch,
+                'assigned_employee' => $client->assignedEmployee,
+                'service_types' => $client->serviceTypes,
+            ];
+        });
         $branches = Branch::all(['id', 'name']);
         $serviceTypes = ServiceType::where('is_active', true)->get(['id', 'name', 'slug']);
         
@@ -47,6 +64,7 @@ class AdminClientController extends Controller
         $validated = $request->validate([
             'company_name' => 'required|string|max:255',
             'tin_number' => 'required|string|max:255|unique:clients,tin_number',
+            'email' => 'required|email|max:255|unique:users,email',
             'sector' => 'required|string|max:255',
             'service_type_ids' => 'required|array|min:1',
             'service_type_ids.*' => 'exists:service_types,id',
@@ -54,7 +72,7 @@ class AdminClientController extends Controller
             'assigned_employee_id' => 'nullable|exists:users,id',
             'complexity_score' => 'required|integer|min:1|max:10',
             'status' => 'required|in:Active,Risk,Incomplete',
-            'logo' => 'nullable|image|max:2048',
+            'logo' => 'nullable|image|max:10000',
         ]);
 
         $logoPath = null;
@@ -67,7 +85,17 @@ class AdminClientController extends Controller
         $client = Client::create($data);
         $client->serviceTypes()->sync($request->service_type_ids);
 
-        return back()->with('success', 'Client created successfully.');
+        // Automate Portal User Creation
+        $user = User::create([
+            'name' => $client->company_name,
+            'email' => $request->email,
+            'password' => Hash::make($client->tin_number),
+            'client_id' => $client->id,
+            'email_verified_at' => now(),
+        ]);
+        $user->assignRole('Client');
+
+        return back()->with('success', 'Client onboarded and portal access granted.');
     }
 
     public function update(Request $request, Client $client)
@@ -82,6 +110,12 @@ class AdminClientController extends Controller
                 'max:255',
                 Rule::unique('clients')->ignore($client->id)
             ],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users')->ignore($client->user?->id)
+            ],
             'sector' => 'required|string|max:255',
             'service_type_ids' => 'required|array|min:1',
             'service_type_ids.*' => 'exists:service_types,id',
@@ -89,7 +123,7 @@ class AdminClientController extends Controller
             'assigned_employee_id' => 'nullable|exists:users,id',
             'complexity_score' => 'required|integer|min:1|max:10',
             'status' => 'required|in:Active,Risk,Incomplete',
-            'logo' => 'nullable|image|max:2048',
+            'logo' => 'nullable|image|max:10000',
         ]);
 
         if ($request->hasFile('logo')) {
@@ -103,6 +137,15 @@ class AdminClientController extends Controller
         $data = collect($validated)->except(['service_type_ids', 'logo'])->toArray();
         $client->update($data);
         $client->serviceTypes()->sync($request->service_type_ids);
+
+        // Update linked user email if it exists
+        $user = User::where('client_id', $client->id)->first();
+        if ($user) {
+            $user->update([
+                'email' => $request->email,
+                'name' => $client->company_name,
+            ]);
+        }
 
         return back()->with('success', 'Client updated successfully.');
     }

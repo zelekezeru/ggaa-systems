@@ -6,18 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateTaskStatusRequest;
 use App\Models\DailyTask;
 use App\Models\Task;
+use App\Services\AchievementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class WorkspaceController extends Controller
 {
-    private const MAX_CAPACITY = 30;
-
     public function index()
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
+        $maxCapacity = (int) config('workforce.max_capacity');
 
         $tasks = Task::with(['client', 'template'])
             ->where('assigned_user_id', $user->id)
@@ -32,15 +32,13 @@ class WorkspaceController extends Controller
         ]);
 
         $currentLoad     = $user->getCurrentCapacityLoad();
-        $capacityPercent = min(100, round(($currentLoad / self::MAX_CAPACITY) * 100));
-
-
+        $capacityPercent = $maxCapacity > 0 ? min(100, (int) round(($currentLoad / $maxCapacity) * 100)) : 0;
 
         return Inertia::render('Employee/Workspace', [
             'tasksByStatus'   => $grouped,
             'employee'        => $user->only('id', 'name'),
             'currentLoad'     => $currentLoad,
-            'maxCapacity'     => self::MAX_CAPACITY,
+            'maxCapacity'     => $maxCapacity,
             'capacityPercent' => $capacityPercent,
         ]);
     }
@@ -54,7 +52,7 @@ class WorkspaceController extends Controller
 
         $dailyTasks = DailyTask::where('assigned_to', $user->id)
             ->whereDate('scheduled_date', $date)
-            ->orderByRaw("FIELD(priority, 'urgent', 'normal')")
+            ->orderByRaw("CASE priority WHEN 'urgent' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END")
             ->orderBy('scheduled_time')
             ->get();
 
@@ -90,15 +88,22 @@ class WorkspaceController extends Controller
         return back();
     }
 
-    public function updateStatus(UpdateTaskStatusRequest $request, Task $task)
+    public function updateStatus(UpdateTaskStatusRequest $request, Task $task, AchievementService $achievements)
     {
-        $data = ['status' => $request->validated('status')];
+        $newStatus = $request->validated('status');
+        $data = ['status' => $newStatus];
 
-        if ($request->validated('status') === 'Done') {
+        if ($newStatus === 'Done') {
             $data['completed_at'] = now();
         }
 
         $task->update($data);
+
+        // Re-evaluate achievements when work is finished — gives the employee
+        // immediate recognition for hitting milestones.
+        if ($newStatus === 'Done' && $task->assigned_user_id) {
+            $achievements->evaluate($task->assignedEmployee()->first());
+        }
 
         return back();
     }
@@ -206,6 +211,70 @@ class WorkspaceController extends Controller
         $currentLoad = $user->getCurrentCapacityLoad();
         $healthStatus = $currentLoad > 25 ? 'Overloaded' : ($currentLoad > 15 ? 'Balanced' : 'Growing');
 
+        // 6. Heatmap — last 90 days of completed daily tasks
+        $heatmapRaw = DailyTask::where('assigned_to', $user->id)
+            ->where('status', 'done')
+            ->whereBetween('scheduled_date', [today()->subDays(89)->toDateString(), today()->toDateString()])
+            ->selectRaw('DATE(scheduled_date) as date, COUNT(*) as count')
+            ->groupBy('date')
+            ->pluck('count', 'date');
+
+        $heatmap = collect(range(89, 0))->map(function ($daysAgo) use ($heatmapRaw) {
+            $date = today()->subDays($daysAgo)->toDateString();
+            return [
+                'date'  => $date,
+                'count' => (int) ($heatmapRaw[$date] ?? 0),
+            ];
+        })->values();
+
+        // 7. Achievements (earned + locked, with progress hints)
+        $earnedAchievements = $user->achievements()
+            ->orderByDesc('user_achievements.earned_at')
+            ->get()
+            ->map(fn ($a) => [
+                'id'          => $a->id,
+                'key'         => $a->key,
+                'name'        => $a->name,
+                'description' => $a->description,
+                'icon'        => $a->icon,
+                'tier'        => $a->tier,
+                'points'      => $a->points,
+                'earned_at'   => $a->pivot->earned_at,
+            ]);
+
+        $lockedAchievements = \App\Models\Achievement::where('is_active', true)
+            ->whereNotIn('id', $earnedAchievements->pluck('id'))
+            ->get()
+            ->map(fn ($a) => [
+                'id'          => $a->id,
+                'key'         => $a->key,
+                'name'        => $a->name,
+                'description' => $a->description,
+                'icon'        => $a->icon,
+                'tier'        => $a->tier,
+                'points'      => $a->points,
+            ]);
+
+        // 8. Branch leaderboard — peers by points + monthly performance score
+        $leaderboard = \App\Models\User::role('Employee')
+            ->where('branch_id', $user->branch_id)
+            ->withCount(['achievements as achievement_count'])
+            ->withSum('achievements as achievement_points', 'points')
+            ->get()
+            ->map(function ($u) {
+                return [
+                    'id'                 => $u->id,
+                    'name'               => $u->name,
+                    'avatar'             => $u->profile_photo_url,
+                    'is_self'            => $u->id === auth()->id(),
+                    'achievement_count'  => (int) ($u->achievement_count ?? 0),
+                    'achievement_points' => (int) ($u->achievement_points ?? 0),
+                    'monthly_score'      => $u->getWeightedPerformanceScore(now()->month, now()->year),
+                ];
+            })
+            ->sortByDesc(fn ($u) => $u['achievement_points'] * 10 + $u['monthly_score'])
+            ->values();
+
         return Inertia::render('Employee/Performance', [
             'stats' => [
                 'score'        => $score,
@@ -216,7 +285,12 @@ class WorkspaceController extends Controller
                 'pulse'        => $pulse,
                 'load'         => $currentLoad,
             ],
-            'employee' => $user->only('id', 'name'),
+            'heatmap'             => $heatmap,
+            'employee'            => $user->only('id', 'name'),
+            'earnedAchievements'  => $earnedAchievements,
+            'lockedAchievements'  => $lockedAchievements,
+            'totalAchievementPoints' => (int) $earnedAchievements->sum('points'),
+            'leaderboard'         => $leaderboard,
         ]);
     }
 }

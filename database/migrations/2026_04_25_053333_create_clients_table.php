@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Run the migrations.
      */
@@ -14,6 +15,7 @@ return new class extends Migration {
             $table->id();
             $table->string('company_name');
             $table->string('tin_number')->unique();
+            $table->string('email')->nullable();
             $table->string('sector'); // e.g., Manufacturing, Service, Coffee
             $table->enum('service_type', ['Accounting', 'Tax', 'Both']);
 

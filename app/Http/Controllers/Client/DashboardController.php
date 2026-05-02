@@ -16,7 +16,8 @@ class DashboardController extends Controller
         $user = $request->user();
 
         // Load the client record linked to this portal user
-        $client = Client::findOrFail($user->client_id);
+        $client = Client::find($user->client_id);
+        abort_if(!$client, 403, 'This portal user is not assigned to a client record.');
 
         // Tasks that still need action (not Done), eager-loaded with their template
         $pendingTasks = Task::with('template')
@@ -32,6 +33,9 @@ class DashboardController extends Controller
             ]);
 
         $allTasks = Task::where('client_id', $client->id)->get();
+        $totalTasks = $allTasks->count();
+        $doneTasks = $allTasks->where('status', 'Done')->count();
+        $progress = $totalTasks > 0 ? round(($doneTasks / $totalTasks) * 100) : 100;
 
         $stats = [
             'upcoming_count' => $allTasks->filter(
@@ -39,6 +43,7 @@ class DashboardController extends Controller
             )->count(),
             'missing_docs'   => $allTasks->where('status', 'Pending Docs')->count(),
             'retainer'       => number_format($client->retainer_fee ?? 0, 2),
+            'progress'       => $progress,
             'recent_docs'    => [], // Populated when document uploads are implemented
         ];
 

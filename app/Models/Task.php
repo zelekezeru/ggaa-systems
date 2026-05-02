@@ -12,12 +12,43 @@ class Task extends Model
 
     protected static function booted()
     {
-        static::addGlobalScope('client_privacy', function (Builder $builder) {
-            if (Auth::check() && Auth::user()->hasRole('Client')) {
-                // Force the query to ONLY return data matching their specific client_id
-                $builder->where('client_id', Auth::user()->client_id);
+        // Layered access: Clients see only their tasks; Employees see only their assignments;
+        // Branch Managers see all tasks within their branch; Super Admins see everything.
+        static::addGlobalScope('role_based_access', function (Builder $builder) {
+            if (! Auth::check()) {
+                return;
             }
+
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+
+            if ($user->hasRole('Super Admin')) {
+                return;
+            }
+
+            if ($user->hasRole('Client')) {
+                $builder->where('client_id', $user->client_id);
+                return;
+            }
+
+            if ($user->hasRole('Branch Manager')) {
+                $builder->whereHas('client', fn ($q) => $q->where('branch_id', $user->branch_id));
+                return;
+            }
+
+            if ($user->hasRole('Employee')) {
+                $builder->where('assigned_user_id', $user->id);
+                return;
+            }
+
+            // Fail-closed for unknown / unassigned roles
+            $builder->whereRaw('0 = 1');
         });
+    }
+
+    public function comments()
+    {
+        return $this->hasMany(TaskComment::class)->latest();
     }
 
     // Treat these dates as Carbon instances so we can do math on them (like calculating if they are late)

@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\ServiceType;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class ClientSeeder extends Seeder
 {
@@ -27,9 +28,9 @@ class ClientSeeder extends Seeder
 
         // ── Users ────────────────────────────────────────────────────────────
         /** @var User|null $manager */
-        $manager  = User::where('email', 'manager@ggaa.com')->first();
+        $manager  = User::where('email', '=', 'manager@ggaa.com', 'and')->first();
         /** @var User|null $employee */
-        $employee = User::where('email', 'employee@ggaa.com')->first();
+        $employee = User::where('email', '=', 'employee@ggaa.com', 'and')->first();
 
         // ── Branches ─────────────────────────────────────────────────────────
         /** @var Branch $addis */
@@ -143,6 +144,8 @@ class ClientSeeder extends Seeder
             'both'       => [$accounting->id, $tax->id],
         ];
 
+        $defaultClient = null;
+
         foreach ($clients as $data) {
             $services = $data['services'];
             unset($data['services']);
@@ -154,6 +157,28 @@ class ClientSeeder extends Seeder
             );
 
             $client->serviceTypes()->sync($serviceMap[$services]);
+
+            if (! $defaultClient) {
+                $defaultClient = $client;
+            }
+        }
+
+        /** @var User $clientPortalUser */
+        $clientPortalUser = User::firstOrCreate(
+            ['email' => 'client@ggaa.com'],
+            [
+                'name' => 'Portal Client',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+            ]
+        );
+
+        if (! $clientPortalUser->hasRole('Client')) {
+            $clientPortalUser->assignRole('Client');
+        }
+
+        if ($defaultClient && $clientPortalUser->client_id !== $defaultClient->id) {
+            $clientPortalUser->update(['client_id' => $defaultClient->id]);
         }
     }
 }

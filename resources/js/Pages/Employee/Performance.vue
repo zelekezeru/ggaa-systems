@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import EmployeeLayout from '@/Layouts/EmployeeLayout.vue';
+import HeatmapCalendar from '@/Components/HeatmapCalendar.vue';
 import { useI18n } from 'vue-i18n';
 import { 
     TrophyIcon, 
@@ -16,9 +17,21 @@ import {
 const { t } = useI18n();
 
 const props = defineProps({
-    stats: { type: Object, required: true },
-    employee: { type: Object, required: true }
+    stats:                  { type: Object, required: true },
+    heatmap:                { type: Array,  default: () => [] },
+    employee:               { type: Object, required: true },
+    earnedAchievements:     { type: Array,  default: () => [] },
+    lockedAchievements:     { type: Array,  default: () => [] },
+    totalAchievementPoints: { type: Number, default: 0 },
+    leaderboard:            { type: Array,  default: () => [] },
 });
+
+const tierStyle = (tier) => ({
+    bronze:   { ring: 'ring-amber-700/40', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
+    silver:   { ring: 'ring-slate-400/40', bg: 'bg-slate-50 dark:bg-slate-800/40', text: 'text-slate-600 dark:text-slate-300' },
+    gold:     { ring: 'ring-yellow-500/40', bg: 'bg-yellow-50 dark:bg-yellow-900/20', text: 'text-yellow-700 dark:text-yellow-300' },
+    platinum: { ring: 'ring-violet-500/40', bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-700 dark:text-violet-300' },
+}[tier] || { ring: 'ring-slate-300', bg: 'bg-slate-50', text: 'text-slate-600' });
 
 const scoreCategory = computed(() => {
     if (props.stats.score >= 90) return { label: 'Elite', color: 'text-emerald-500', bg: 'bg-emerald-500/10' };
@@ -186,6 +199,114 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Heatmap Calendar -->
+            <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                <HeatmapCalendar :data="heatmap" />
+            </div>
+
+            <!-- Achievements -->
+            <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Achievements</h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            {{ earnedAchievements.length }} earned · {{ totalAchievementPoints }} pts ·
+                            {{ lockedAchievements.length }} to go
+                        </p>
+                    </div>
+                    <div v-if="earnedAchievements.length" class="text-4xl">🏆</div>
+                </div>
+
+                <div v-if="earnedAchievements.length === 0 && lockedAchievements.length === 0" class="text-center text-slate-400 py-8">
+                    No achievements configured yet.
+                </div>
+
+                <!-- Earned -->
+                <div v-if="earnedAchievements.length" class="mb-6">
+                    <h3 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">Earned</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <div
+                            v-for="a in earnedAchievements"
+                            :key="a.id"
+                            class="rounded-xl p-4 ring-2 transition-transform hover:scale-[1.02]"
+                            :class="[tierStyle(a.tier).bg, tierStyle(a.tier).ring]"
+                        >
+                            <div class="text-3xl mb-2">{{ a.icon }}</div>
+                            <p class="font-bold text-sm" :class="tierStyle(a.tier).text">{{ a.name }}</p>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{{ a.description }}</p>
+                            <p class="text-[10px] uppercase tracking-wider mt-2 font-bold" :class="tierStyle(a.tier).text">
+                                {{ a.tier }} · +{{ a.points }} pts
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Locked -->
+                <div v-if="lockedAchievements.length">
+                    <h3 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">Locked</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <div
+                            v-for="a in lockedAchievements"
+                            :key="a.id"
+                            class="rounded-xl p-4 ring-1 ring-slate-200 dark:ring-slate-700 bg-slate-50/50 dark:bg-slate-800/30 opacity-60"
+                            :title="a.description"
+                        >
+                            <div class="text-3xl mb-2 grayscale">{{ a.icon }}</div>
+                            <p class="font-bold text-sm text-slate-600 dark:text-slate-300">{{ a.name }}</p>
+                            <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">{{ a.description }}</p>
+                            <p class="text-[10px] uppercase tracking-wider mt-2 font-bold text-slate-400">
+                                {{ a.tier }} · {{ a.points }} pts
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard -->
+            <div v-if="leaderboard.length" class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Branch Leaderboard</h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Friendly competition · ranked by achievement points and on-time score</p>
+                    </div>
+                    <FireIcon class="h-8 w-8 text-orange-500" />
+                </div>
+
+                <ul class="space-y-2">
+                    <li
+                        v-for="(u, i) in leaderboard"
+                        :key="u.id"
+                        class="flex items-center gap-4 p-3 rounded-xl ring-1 transition"
+                        :class="u.is_self
+                            ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-indigo-300 dark:ring-indigo-700'
+                            : 'bg-slate-50/50 dark:bg-slate-800/30 ring-slate-100 dark:ring-slate-700'"
+                    >
+                        <div
+                            class="w-10 h-10 rounded-full flex items-center justify-center font-black text-lg flex-shrink-0"
+                            :class="i === 0 ? 'bg-yellow-100 text-yellow-700' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-amber-100 text-amber-700' : 'bg-slate-50 text-slate-400 dark:bg-slate-700 dark:text-slate-300'"
+                        >
+                            <span v-if="i === 0">🥇</span>
+                            <span v-else-if="i === 1">🥈</span>
+                            <span v-else-if="i === 2">🥉</span>
+                            <span v-else>{{ i + 1 }}</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-bold text-slate-900 dark:text-white truncate">
+                                {{ u.name }}
+                                <span v-if="u.is_self" class="ml-2 text-xs uppercase tracking-wider font-semibold text-indigo-600 dark:text-indigo-400">You</span>
+                            </p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">
+                                {{ u.achievement_count }} achievements · Score {{ u.monthly_score }}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-2xl font-black text-slate-900 dark:text-white">{{ u.achievement_points }}</p>
+                            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">points</p>
+                        </div>
+                    </li>
+                </ul>
             </div>
         </div>
     </EmployeeLayout>

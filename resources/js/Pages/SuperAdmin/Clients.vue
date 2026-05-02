@@ -67,6 +67,7 @@ const form = useForm({
     id: null,
     company_name: '',
     tin_number: '',
+    email: '',
     sector: '',
     service_type_ids: [],
     branch_id: '',
@@ -82,6 +83,7 @@ const openModal = (client = null) => {
         form.id = client.id;
         form.company_name = client.company_name;
         form.tin_number = client.tin_number;
+        form.email = client.email || '';
         form.sector = client.sector;
         form.service_type_ids = client.service_types.map(st => st.id);
         form.branch_id = client.branch_id;
@@ -103,9 +105,11 @@ const closeModal = () => {
 
 const submitForm = () => {
     if (isEditing.value) {
-        form.post(route('admin.clients.update', form.id), {
+        form.transform((data) => ({
+            ...data,
+            _method: 'put',
+        })).post(route('admin.clients.update', form.id), {
             forceFormData: true,
-            onBefore: () => form.setData('_method', 'put'),
             preserveScroll: true,
             onSuccess: () => closeModal(),
         });
@@ -141,11 +145,22 @@ const executeDelete = () => {
             isDeleting.value = false;
             clientToDelete.value = null;
         },
-        onError: () => {
+        onFinish: () => {
             isDeleting.value = false;
         }
     });
 };
+
+const createLogoUrl = (file) => {
+    if (!file) return '';
+    try {
+        return URL.createObjectURL(file);
+    } catch (e) {
+        return '';
+    }
+};
+
+const currentUserId = computed(() => usePage().props.auth.user.id);
 
 const getStatusColor = (status) => {
     switch (status) {
@@ -317,7 +332,7 @@ const getStatusColor = (status) => {
             <form id="client-form" @submit.prevent="submitForm" class="space-y-6">
                 <div class="flex items-center space-x-6 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
                     <div class="h-20 w-20 rounded-2xl bg-slate-100 dark:bg-slate-800 flex-shrink-0 overflow-hidden border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center">
-                        <img v-if="form.logo" :src="URL.createObjectURL(form.logo)" class="h-full w-full object-cover" />
+                        <img v-if="form.logo" :src="createLogoUrl(form.logo)" class="h-full w-full object-cover" />
                         <img v-else-if="isEditing && clients.find(c => c.id === form.id)?.logo_url" :src="clients.find(c => c.id === form.id).logo_url" class="h-full w-full object-cover" />
                         <span v-else class="text-slate-400 text-2xl font-bold uppercase">{{ form.company_name ? form.company_name.charAt(0) : '?' }}</span>
                     </div>
@@ -325,20 +340,36 @@ const getStatusColor = (status) => {
                         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{{ t('logo') || 'Client Logo' }}</label>
                         <input type="file" @input="form.logo = $event.target.files[0]" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400" />
                         <p class="mt-1 text-[10px] text-slate-400">JPG, PNG or WEBP. Max 2MB.</p>
+                        <p v-if="form.errors.logo" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.logo }}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-1">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('company_name') }}</label>
+                        <input v-model="form.company_name" type="text" required class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                        <p v-if="form.errors.company_name" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.company_name }}</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('company_name') }}</label>
-                        <input v-model="form.company_name" type="text" required class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
-                        <p v-if="form.errors.company_name" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.company_name }}</p>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('email') }}</label>
+                        <input v-model="form.email" type="email" required class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                        <p v-if="form.errors.email" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.email }}</p>
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('tin_number') }}</label>
                         <input v-model="form.tin_number" type="text" required class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
                         <p v-if="form.errors.tin_number" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.tin_number }}</p>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('email') }}</label>
+                        <input v-model="form.email" type="email" required placeholder="client@example.com" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                        <p v-if="form.errors.email" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.email }}</p>
+                        <p class="mt-1 text-[10px] text-slate-400">{{ $t('portal_login_desc') }}</p>
                     </div>
 
                     <div class="sm:col-span-2">
@@ -354,6 +385,7 @@ const getStatusColor = (status) => {
                     <div>
                         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('sector') }}</label>
                         <input v-model="form.sector" type="text" required placeholder="e.g. Manufacturing" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                        <p v-if="form.errors.sector" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.sector }}</p>
                     </div>
 
                     <div>
@@ -362,6 +394,7 @@ const getStatusColor = (status) => {
                             <option value="" disabled>{{ $t('select_branch') }}</option>
                             <option v-for="branch in branches" :key="branch.id" :value="branch.id">{{ branch.name }}</option>
                         </select>
+                        <p v-if="form.errors.branch_id" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.branch_id }}</p>
                     </div>
 
                     <div>
@@ -370,6 +403,7 @@ const getStatusColor = (status) => {
                             <option value="">-- {{ $t('unassigned') }} --</option>
                             <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
                         </select>
+                        <p v-if="form.errors.assigned_employee_id" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.assigned_employee_id }}</p>
                     </div>
                     
                     <div>
@@ -379,6 +413,7 @@ const getStatusColor = (status) => {
                             <option value="Active">{{ $t('active') }}</option>
                             <option value="Risk">{{ $t('risk') }}</option>
                         </select>
+                        <p v-if="form.errors.status" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.status }}</p>
                     </div>
                 </div>
 
@@ -391,6 +426,7 @@ const getStatusColor = (status) => {
                         <span class="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{{ form.complexity_score }}</span>
                     </div>
                     <input type="range" v-model="form.complexity_score" min="1" max="10" class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    <p v-if="form.errors.complexity_score" class="mt-2 text-xs text-red-600 font-bold">{{ form.errors.complexity_score }}</p>
                 </div>
             </form>
 

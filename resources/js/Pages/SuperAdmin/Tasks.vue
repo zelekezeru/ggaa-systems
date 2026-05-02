@@ -604,7 +604,7 @@ const atRiskTasks = computed(() => {
                                 <button type="button" @click="showEditModal = false" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">Cancel</button>
                                 <button type="submit" :disabled="editForm.processing" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
                                     <span v-if="editForm.processing">Saving...</span>
-                                    <span v-else>Save Changes</span>
+                                    <span v-else>{{ $t('save_changes') }}</span>
                                 </button>
                             </div>
                         </form>

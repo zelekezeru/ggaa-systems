@@ -55,4 +55,20 @@ class BillingController extends Controller
 
         return back()->with('success', "Reminder sent to {$client->company_name}.");
     }
+
+    public function recordPayment(Request $request, Client $client)
+    {
+        $validated = $request->validate([
+            'amount'       => ['required', 'numeric', 'min:0'],
+            'payment_date' => ['required', 'date', 'before_or_equal:today'],
+            'notes'        => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $client->update([
+            'payment_status'    => 'Paid',
+            'last_payment_date' => $validated['payment_date'],
+        ]);
+
+        return back()->with('success', "Payment of ETB {$validated['amount']} recorded for {$client->company_name}.");
+    }
 }

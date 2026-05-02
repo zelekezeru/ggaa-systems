@@ -2,44 +2,58 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\User;
 use App\Models\Branch;
 use App\Models\ServiceType;
-use Illuminate\Validation\Rule;
+use App\Models\StaffUser;
+use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class StaffController extends Controller
 {
-    // Display the Staff Page
+    /**
+     * Map a `staff_users.position` enum value to the Spatie role we should
+     * assign to the user. Keep these in sync with RoleAndPermissionSeeder.
+     */
+    private const POSITION_TO_ROLE = [
+        'employee'    => 'Employee',
+        'manager'     => 'Branch Manager',
+        'team_leader' => 'Team Leader',
+        'admin'       => 'Super Admin',
+        'finance'     => 'Finance Admin',
+        'other'       => 'Employee',
+    ];
+
     public function index()
     {
         abort_unless(auth()->user()->can('view-user'), 403, 'Unauthorized access.');
 
-        $staff = User::role('Employee')
-            ->with(['branch', 'serviceTypes'])
+        $staff = User::query()
+            ->whereHas('staffProfile')
+            ->with(['branch', 'serviceTypes', 'staffProfile', 'roles:id,name'])
             ->withCount('clients')
             ->get()
             ->map(function ($employee) {
-                // Attach the dynamic capacity points we built earlier
                 $employee->capacity_points = $employee->getCurrentCapacityLoad();
+                $employee->position_label  = $employee->staffProfile
+                    ? (StaffUser::POSITIONS[$employee->staffProfile->position] ?? null)
+                    : null;
                 return $employee;
             });
 
-        // We also need branches to populate the "Assign to Branch" dropdown in the modal
-        $branches = Branch::where('is_active', true)->get(['id', 'name']);
-        
-        // Load active service types for staff specialization
+        $branches     = Branch::where('is_active', true)->get(['id', 'name']);
         $serviceTypes = ServiceType::where('is_active', true)->get(['id', 'name']);
 
         return Inertia::render('SuperAdmin/Staff', [
-            'staff' => $staff,
-            'branches' => $branches,
+            'staff'        => $staff,
+            'branches'     => $branches,
             'serviceTypes' => $serviceTypes,
+            'positions'    => StaffUser::POSITIONS,
         ]);
     }
 
@@ -48,13 +62,23 @@ class StaffController extends Controller
         abort_unless(auth()->user()->can('manage-user'), 403, 'Unauthorized access.');
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'branch_id' => 'required|exists:branches,id',
-            'service_type_ids' => 'nullable|array',
+            'name'              => 'required|string|max:255',
+            'email'             => 'required|string|email|max:255|unique:users',
+            'password'          => 'required|string|min:8|confirmed',
+            'user_type'         => 'required|in:staff,client',
+            'branch_id'         => 'required|exists:branches,id',
+            'service_type_ids'  => 'nullable|array',
             'service_type_ids.*' => 'exists:service_types,id',
-            'profile_photo' => 'nullable|image|max:2048',
+            'profile_photo'     => 'nullable|image|max:10000',
+
+            // Staff-only
+            'position'          => 'required_if:user_type,staff|in:' . implode(',', array_keys(StaffUser::POSITIONS)),
+            'position_title'    => 'nullable|string|max:255',
+            'employment_type'   => 'nullable|in:full_time,part_time,contract',
+            'hire_date'         => 'nullable|date',
+
+            // Client-only
+            'client_id'         => 'required_if:user_type,client|nullable|exists:clients,id',
         ]);
 
         $photoPath = null;
@@ -63,21 +87,37 @@ class StaffController extends Controller
         }
 
         $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'branch_id' => $validated['branch_id'],
+            'name'               => $validated['name'],
+            'email'              => $validated['email'],
+            'password'           => Hash::make($validated['password']),
+            'branch_id'          => $validated['branch_id'],
             'profile_photo_path' => $photoPath,
+            'client_id'          => $validated['user_type'] === 'client' ? $validated['client_id'] : null,
         ]);
 
-        if ($request->has('service_type_ids')) {
-            $user->serviceTypes()->sync($request->service_type_ids);
+        if ($request->filled('service_type_ids')) {
+            $user->serviceTypes()->sync($validated['service_type_ids']);
         }
 
-        // Assign the strict Spatie role
-        $user->assignRole('Employee');
+        if ($validated['user_type'] === 'staff') {
+            StaffUser::create([
+                'user_id'         => $user->id,
+                'position'        => $validated['position'],
+                'position_title'  => $validated['position_title'] ?? null,
+                'employment_type' => $validated['employment_type'] ?? 'full_time',
+                'hire_date'       => $validated['hire_date'] ?? null,
+                'is_active'       => true,
+            ]);
 
-        return back()->with('success', 'Employee created successfully.');
+            $role = self::POSITION_TO_ROLE[$validated['position']] ?? 'Employee';
+            $user->assignRole($role);
+
+            return back()->with('success', "Staff member created as {$role}.");
+        }
+
+        $user->assignRole('Client');
+
+        return back()->with('success', 'Client portal user created.');
     }
 
     public function update(Request $request, User $staff)
@@ -85,12 +125,16 @@ class StaffController extends Controller
         abort_unless(auth()->user()->can('edit-user'), 403, 'Unauthorized access.');
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($staff->id)],
-            'branch_id' => 'required|exists:branches,id',
-            'service_type_ids' => 'nullable|array',
+            'name'              => 'required|string|max:255',
+            'email'             => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($staff->id)],
+            'branch_id'         => 'required|exists:branches,id',
+            'service_type_ids'  => 'nullable|array',
             'service_type_ids.*' => 'exists:service_types,id',
-            'profile_photo' => 'nullable|image|max:2048',
+            'profile_photo'     => 'nullable|image|max:10000',
+            'position'          => 'nullable|in:' . implode(',', array_keys(StaffUser::POSITIONS)),
+            'position_title'    => 'nullable|string|max:255',
+            'employment_type'   => 'nullable|in:full_time,part_time,contract',
+            'is_active'         => 'nullable|boolean',
         ]);
 
         if ($request->hasFile('profile_photo')) {
@@ -100,16 +144,35 @@ class StaffController extends Controller
             $staff->profile_photo_path = $request->file('profile_photo')->store('profile-photos', 'public');
         }
 
-        $staff->name = $validated['name'];
-        $staff->email = $validated['email'];
+        $staff->name      = $validated['name'];
+        $staff->email     = $validated['email'];
         $staff->branch_id = $validated['branch_id'];
         $staff->save();
 
         if ($request->has('service_type_ids')) {
-            $staff->serviceTypes()->sync($request->service_type_ids);
+            $staff->serviceTypes()->sync($request->input('service_type_ids', []));
         }
 
-        return back()->with('success', 'Employee profile updated.');
+        if ($staff->staffProfile && $request->filled('position')) {
+            $oldRole = self::POSITION_TO_ROLE[$staff->staffProfile->position] ?? null;
+            $newRole = self::POSITION_TO_ROLE[$validated['position']] ?? 'Employee';
+
+            $staff->staffProfile->update([
+                'position'        => $validated['position'],
+                'position_title'  => $validated['position_title'] ?? $staff->staffProfile->position_title,
+                'employment_type' => $validated['employment_type'] ?? $staff->staffProfile->employment_type,
+                'is_active'       => $validated['is_active'] ?? $staff->staffProfile->is_active,
+            ]);
+
+            if ($oldRole !== $newRole) {
+                if ($oldRole) {
+                    $staff->removeRole($oldRole);
+                }
+                $staff->assignRole($newRole);
+            }
+        }
+
+        return back()->with('success', 'Staff profile updated.');
     }
 
     public function resetPassword(User $staff)
@@ -117,7 +180,7 @@ class StaffController extends Controller
         abort_unless(auth()->user()->can('manage-user'), 403, 'Unauthorized access.');
 
         $newPassword = Str::password(12, true, true, false, false);
-        
+
         $staff->password = Hash::make($newPassword);
         $staff->save();
 
@@ -137,11 +200,11 @@ class StaffController extends Controller
         abort_unless(auth()->user()->can('delete-user'), 403, 'Unauthorized access.');
 
         if ($staff->clients()->count() > 0) {
-            return back()->with('error', 'Cannot delete an employee with assigned clients. Please reassign their clients first.');
+            return back()->with('error', 'Cannot delete a staff member with assigned clients. Please reassign their clients first.');
         }
 
         $staff->delete();
 
-        return back()->with('success', 'Employee removed from the system.');
+        return back()->with('success', 'Staff member removed from the system.');
     }
 }

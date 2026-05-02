@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
@@ -63,6 +64,9 @@ const user = computed(() => page.props.auth?.user);
                     </span>
 
                     <div class="text-sm font-medium text-gray-700">{{ user?.name }}</div>
+
+                    <!-- Notification Bell -->
+                    <NotificationBell />
 
                     <!-- Language Switch Component -->
                     <LanguageSwitcher />

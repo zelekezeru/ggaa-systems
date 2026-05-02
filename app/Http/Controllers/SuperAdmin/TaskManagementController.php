@@ -15,10 +15,12 @@ class TaskManagementController extends Controller
 {
     public function index(Request $request)
     {
-        abort_unless(Auth::user()->hasAnyRole(['Super Admin', 'Branch Manager']), 403);
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        abort_unless($user->hasAnyRole(['Super Admin', 'Branch Manager']), 403);
 
-        $query = Task::with(['client', 'template', 'assignedEmployee'])
-            ->withoutGlobalScopes(); // Admin sees all tasks regardless of role
+        // The Task model's global scope auto-filters Branch Managers to their branch.
+        $query = Task::with(['client', 'template', 'assignedEmployee']);
 
         // -- Filters --
         if ($request->filled('status') && $request->status !== 'all') {
@@ -39,38 +41,64 @@ class TaskManagementController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('client', fn($q) => $q->where('company_name', 'like', "%{$search}%"))
-                ->orWhereHas('template', fn($q) => $q->where('name', 'like', "%{$search}%"));
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('client', fn ($c) => $c->where('company_name', 'like', "%{$search}%"))
+                  ->orWhereHas('template', fn ($t) => $t->where('name', 'like', "%{$search}%"));
+            });
         }
 
-        $tasks = $query->orderByRaw("FIELD(status, 'To Do', 'In Review', 'Waiting on Client', 'Done')")
+        // DB-agnostic ordering (works on MySQL + SQLite, unlike FIELD())
+        $tasks = $query->orderByRaw($this->statusOrderingSql())
             ->orderBy('due_date')
             ->get();
 
-        $employees = User::role('Employee')->get(['id', 'name', 'branch_id']);
-        $clients = Client::withoutGlobalScopes()->get(['id', 'company_name', 'complexity_score']);
+        // Employee/client lookups also respect the global scope so Branch Managers only
+        // see their own branch's people and clients.
+        $employeesQuery = User::role('Employee');
+        if ($user->hasRole('Branch Manager') && ! $user->hasRole('Super Admin')) {
+            $employeesQuery->where('branch_id', $user->branch_id);
+        }
+        $employees = $employeesQuery->get(['id', 'name', 'branch_id'])->map(function ($u) {
+            $u->current_load = $u->getCurrentCapacityLoad();
+            $u->capacity_percent = $u->capacity_percent;
+            return $u;
+        });
+        $clients   = Client::get(['id', 'company_name', 'complexity_score']);
         $templates = TaskTemplate::all(['id', 'name']);
 
-        // Summary stats
+        $statsBase = Task::query();
         $stats = [
-            'total' => Task::withoutGlobalScopes()->count(),
-            'unassigned' => Task::withoutGlobalScopes()->whereNull('assigned_user_id')->count(),
-            'in_review' => Task::withoutGlobalScopes()->where('status', 'In Review')->count(),
-            'overdue' => Task::withoutGlobalScopes()
+            'total'      => (clone $statsBase)->count(),
+            'unassigned' => (clone $statsBase)->whereNull('assigned_user_id')->count(),
+            'in_review'  => (clone $statsBase)->where('status', 'In Review')->count(),
+            'overdue'    => (clone $statsBase)
                 ->where('status', '!=', 'Done')
                 ->where('due_date', '<', now())
                 ->count(),
         ];
 
-
         return Inertia::render('SuperAdmin/Tasks', [
-            'tasks' => $tasks,
+            'tasks'     => $tasks,
             'employees' => $employees,
-            'clients' => $clients,
+            'clients'   => $clients,
             'templates' => $templates,
-            'stats' => $stats,
-            'filters' => $request->only(['status', 'employee_id', 'client_id', 'search']),
+            'stats'     => $stats,
+            'filters'   => $request->only(['status', 'employee_id', 'client_id', 'search']),
         ]);
+    }
+
+    /**
+     * Cross-DB compatible ordering for the task status column.
+     * Works on MySQL, PostgreSQL, and SQLite (unlike MySQL-specific FIELD()).
+     */
+    private function statusOrderingSql(): string
+    {
+        return "CASE status "
+            . "WHEN 'To Do' THEN 1 "
+            . "WHEN 'In Review' THEN 2 "
+            . "WHEN 'Waiting on Client' THEN 3 "
+            . "WHEN 'Done' THEN 4 "
+            . "ELSE 5 END";
     }
 
     public function store(Request $request)

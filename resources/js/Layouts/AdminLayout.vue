@@ -4,6 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import ThemeToggle from '@/Components/ThemeToggle.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
 import { useToast } from 'vue-toastification';
 import { useI18n } from 'vue-i18n';
 import { 
@@ -20,7 +21,8 @@ import {
     ClipboardDocumentListIcon,
     DocumentDuplicateIcon,
     ChevronDownIcon,
-    ChevronUpIcon
+    ChevronUpIcon,
+    RectangleGroupIcon
 } from '@heroicons/vue/24/outline';
 
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
@@ -38,11 +40,8 @@ watch(() => page.props.flash, (flash) => {
     if (flash?.warning) toast.warning(flash.warning);
 }, { deep: true });
 
-onMounted(() => {
-    const currentLang = localStorage.getItem('locale') || 'en';
-    document.documentElement.setAttribute('dir', 'ltr');
-    document.documentElement.lang = currentLang;
-});
+// Direction & language are managed centrally in app.js (sets html[dir] + html[lang]
+// based on locale, with RTL support for Arabic).
 
 const openDropdowns = ref({
     task_management: page.url.startsWith('/super-admin/tasks') || page.url.startsWith('/super-admin/task-types')
@@ -69,6 +68,7 @@ const navigation = computed(() => [
             { name: t('daily_tasks') || 'Daily Tasks', href: route('admin.daily-tasks.index'), current: page.url.startsWith('/super-admin/daily-tasks') },
         ]
     },
+    { name: t('team_projects') || 'Team Projects', href: route('team-projects.index'), icon: RectangleGroupIcon, current: page.url.startsWith('/team-projects') },
     { name: t('role_management'), href: route('super-admin.roles.index'), icon: ShieldCheckIcon, current: page.url.startsWith('/super-admin/roles') },
     { name: t('reports'), href: route('super-admin.reports'), icon: ChartBarIcon, current: page.url.startsWith('/super-admin/reports') },
 ]);
@@ -206,9 +206,12 @@ const navigation = computed(() => [
                     <ApplicationLogo class="h-8 w-8 text-blue-600 dark:text-blue-400" />
                     <span class="text-sm font-bold text-slate-900 dark:text-white">GGAA Systems</span>
                 </div>
-                <button class="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" @click="isSidebarOpen = true">
-                    <Bars3Icon class="h-6 w-6" />
-                </button>
+                <div class="flex items-center gap-2">
+                    <NotificationBell />
+                    <button class="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" @click="isSidebarOpen = true">
+                        <Bars3Icon class="h-6 w-6" />
+                    </button>
+                </div>
             </header>
 
             <!-- Main Page Content -->

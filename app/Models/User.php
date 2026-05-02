@@ -60,11 +60,44 @@ class User extends Authenticatable
         return $this->hasMany(Client::class, 'assigned_employee_id');
     }
 
-    // 1. Calculate Current Workload
+    public function staffProfile()
+    {
+        return $this->hasOne(StaffUser::class);
+    }
+
+    public function teamProjectMemberships()
+    {
+        return $this->hasMany(TeamProjectMember::class);
+    }
+
+    public function teamProjects()
+    {
+        return $this->belongsToMany(TeamProject::class, 'team_project_members')
+            ->withPivot(['role_in_team', 'complexity_share', 'joined_at', 'left_at'])
+            ->withTimestamps();
+    }
+
+    public function ledTeamProjects()
+    {
+        return $this->hasMany(TeamProject::class, 'team_leader_id');
+    }
+
+    public function isStaff(): bool
+    {
+        return $this->staffProfile()->where('is_active', true)->exists();
+    }
+
+    // 1. Calculate Current Workload (clients + active team-project shares)
     public function getCurrentCapacityLoad()
     {
-        // Sum the complexity scores of all assigned clients
-        return $this->clients()->sum('complexity_score'); 
+        $clientLoad = (int) $this->clients()->sum('complexity_score');
+
+        $teamLoad = (int) $this->teamProjectMemberships()
+            ->whereNull('left_at')
+            ->whereHas('project', fn ($q) => $q->whereIn('status', TeamProject::ACTIVE_STATUSES))
+            ->sum('complexity_share');
+
+        return $clientLoad + $teamLoad;
     }
 
     // 2. Calculate Weighted Performance (For the Manager Dashboard)
@@ -112,10 +145,39 @@ class User extends Authenticatable
      */
     public function scopeAvailableForComplexity($query, $requiredPoints)
     {
-        $maxCapacity = 30; // Global system setting
-        
+        $maxCapacity = config('workforce.max_capacity');
+
         return $query->role('Employee')->get()->filter(function ($user) use ($maxCapacity, $requiredPoints) {
             return ($user->getCurrentCapacityLoad() + $requiredPoints) <= $maxCapacity;
         });
+    }
+
+    /**
+     * Active staff (any role except Client) eligible to be assigned to team projects
+     * or tasks. Used by the Team Project flow.
+     */
+    public function scopeAssignableStaff($query)
+    {
+        return $query->whereHas('staffProfile', fn ($q) => $q->where('is_active', true));
+    }
+
+    public function getCapacityPercentAttribute(): int
+    {
+        $max = (int) config('workforce.max_capacity');
+        if ($max <= 0) return 0;
+        return (int) min(100, round(($this->getCurrentCapacityLoad() / $max) * 100));
+    }
+
+    public function getRemainingCapacityAttribute(): int
+    {
+        $max = (int) config('workforce.max_capacity');
+        return max(0, $max - $this->getCurrentCapacityLoad());
+    }
+
+    public function achievements()
+    {
+        return $this->belongsToMany(Achievement::class, 'user_achievements')
+            ->withPivot('earned_at')
+            ->withTimestamps();
     }
 }

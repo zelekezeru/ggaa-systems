@@ -42,6 +42,11 @@ class Client extends Model
         return $this->hasMany(Task::class);
     }
 
+    public function user()
+    {
+        return $this->hasOne(User::class);
+    }
+
     // --- The "Invisible Security" Layer (Global Scopes) ---
     protected static function booted()
     {
@@ -64,7 +69,12 @@ class Client extends Model
                     $builder->where('assigned_employee_id', $user->id);
                 }
 
-                // 4. Default Fail-Safe: If unassigned or other role, return zero results
+                // 4. Client: Sees only their own client profile
+                elseif ($user->hasRole('Client')) {
+                    $builder->where('id', $user->client_id);
+                }
+
+                // 5. Default Fail-Safe: If unassigned or other role, return zero results
                 else {
                     $builder->whereRaw('0 = 1');
                 }

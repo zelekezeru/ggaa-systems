@@ -43,7 +43,7 @@ class DailyTaskController extends Controller
         }
 
         $tasks = $query
-            ->orderByRaw("FIELD(priority, 'urgent', 'normal')")
+            ->orderByRaw("CASE priority WHEN 'urgent' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END")
             ->orderBy('scheduled_time')
             ->get();
 

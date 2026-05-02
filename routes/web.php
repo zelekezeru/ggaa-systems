@@ -2,8 +2,12 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\Employee\WorkspaceController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\SuperAdmin\AvailabilityController;
+use App\Http\Controllers\SuperAdmin\BranchOverviewController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
 use App\Http\Controllers\SuperAdmin\RoleManagementController;
 use App\Http\Controllers\SuperAdmin\DailyTaskController;
@@ -17,6 +21,10 @@ use App\Http\Controllers\ServiceTypeController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TeamProject\TeamProjectController;
+use App\Http\Controllers\TeamProject\TeamProjectFileController;
+use App\Http\Controllers\TeamProject\TeamProjectMessageController;
+use App\Http\Controllers\TeamProject\TeamProjectTodoController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +38,24 @@ Route::get('/', function () {
         'phpVersion' => PHP_VERSION,
     ]);
 });
+
+// Client portal landing and login alias
+Route::get('/portal', function () {
+    if (Auth::check()) {
+        $user = Auth::user();
+        if ($user->hasRole('Client')) {
+            return redirect()->route('client.dashboard');
+        }
+
+        return redirect()->route('dashboard');
+    }
+
+    return Inertia::render('Portal/Landing');
+})->name('portal.landing');
+
+Route::get('/portal/login', function () {
+    return redirect()->route('login');
+})->name('portal.login');
 
 // Smart redirect: send each role to their own portal
 Route::get('/dashboard', function () {
@@ -48,12 +74,25 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Notifications (all roles)
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/inbox', [NotificationController::class, 'inbox'])->name('notifications.inbox');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Task comments — visibility piggy-backs on the Task global scope.
+    Route::get('/tasks/{task}/comments', [TaskCommentController::class, 'index'])->name('tasks.comments.index');
+    Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
+    Route::delete('/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy'])->name('tasks.comments.destroy');
 });
 
 // --- CLIENT PORTAL ---
 Route::middleware(['auth', 'role:Client'])->group(function () {
     Route::get('/portal/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
     Route::get('/portal/tasks/{task}', [ClientPortalController::class, 'showTask'])->name('client.tasks.show');
+    Route::get('/portal/messages', [MessageController::class, 'indexForClient'])->name('client.messages.index');
     Route::post('/portal/messages', [MessageController::class, 'storeFromClient'])->name('client.messages.store');
 });
 
@@ -61,9 +100,11 @@ Route::middleware(['auth', 'role:Client'])->group(function () {
 Route::middleware(['auth', 'role:Super Admin|Branch Manager'])->group(function () {
     Route::get('/super-admin/dashboard', [SuperAdminDashboardController::class, 'index'])->name('super-admin.dashboard');
     Route::get('/super-admin/branches', [SuperAdminController::class, 'branches'])->name('super-admin.branches');
+    Route::get('/super-admin/branches/{branch}', [BranchOverviewController::class, 'show'])->name('super-admin.branches.show');
     Route::get('/super-admin/staff', [StaffController::class, 'index'])->name('super-admin.staff');
     Route::get('/super-admin/clients', [AdminClientController::class, 'index'])->name('super-admin.clients');
     Route::get('/super-admin/reports', [SuperAdminController::class, 'reports'])->name('super-admin.reports');
+    Route::get('/super-admin/availability', [AvailabilityController::class, 'index'])->name('super-admin.availability');
 
     // Branch CRUD operations
     Route::post('/super-admin/branches', [BranchController::class, 'store'])->name('admin.branches.store');
@@ -93,6 +134,15 @@ Route::middleware(['auth', 'role:Super Admin|Branch Manager'])->group(function (
     Route::put('/super-admin/roles/{role}', [RoleManagementController::class, 'update'])->name('super-admin.roles.update');
     Route::delete('/super-admin/roles/{role}', [RoleManagementController::class, 'destroy'])->name('super-admin.roles.destroy');
 
+    // Permission Management
+    Route::post('/super-admin/permissions', [RoleManagementController::class, 'storePermission'])->name('super-admin.permissions.store');
+    Route::put('/super-admin/permissions/{permission}', [RoleManagementController::class, 'updatePermission'])->name('super-admin.permissions.update');
+    Route::delete('/super-admin/permissions/{permission}', [RoleManagementController::class, 'destroyPermission'])->name('super-admin.permissions.destroy');
+
+    // User Role Assignment & Removal
+    Route::put('/super-admin/users/{user}/roles', [RoleManagementController::class, 'updateUserRoles'])->name('super-admin.users.roles');
+    Route::delete('/super-admin/users/{user}', [RoleManagementController::class, 'destroyUser'])->name('super-admin.users.destroy');
+
     // Task Management
     Route::get('/super-admin/tasks', [TaskManagementController::class, 'index'])->name('super-admin.tasks.index');
     Route::post('/super-admin/tasks', [TaskManagementController::class, 'store'])->name('super-admin.tasks.store');
@@ -114,12 +164,72 @@ Route::middleware(['auth', 'role:Super Admin|Branch Manager'])->group(function (
     Route::post('/super-admin/daily-tasks', [DailyTaskController::class, 'store'])->name('admin.daily-tasks.store');
     Route::patch('/super-admin/daily-tasks/{dailyTask}/status', [DailyTaskController::class, 'updateStatus'])->name('admin.daily-tasks.status');
     Route::delete('/super-admin/daily-tasks/{dailyTask}', [DailyTaskController::class, 'destroy'])->name('admin.daily-tasks.destroy');
+
+    // Team Project management (admin/manager only — create/delete/leader changes)
+    Route::get('/team-projects/create', [TeamProjectController::class, 'create'])->name('team-projects.create');
+    Route::post('/team-projects', [TeamProjectController::class, 'store'])->name('team-projects.store');
+    Route::delete('/team-projects/{teamProject}', [TeamProjectController::class, 'destroy'])->name('team-projects.destroy');
+    Route::post('/team-projects/{teamProject}/leader', [TeamProjectController::class, 'changeLeader'])->name('team-projects.change-leader');
+});
+
+// --- TEAM PROJECTS (any active staff or client member) ---
+Route::middleware(['auth'])->group(function () {
+    Route::get('/team-projects', [TeamProjectController::class, 'index'])->name('team-projects.index');
+    Route::get('/team-projects/{teamProject}', [TeamProjectController::class, 'show'])->name('team-projects.show');
+    Route::get('/team-projects/{teamProject}/edit', [TeamProjectController::class, 'edit'])->name('team-projects.edit');
+    Route::put('/team-projects/{teamProject}', [TeamProjectController::class, 'update'])->name('team-projects.update');
+    Route::post('/team-projects/{teamProject}/transition', [TeamProjectController::class, 'transition'])->name('team-projects.transition');
+
+    // Members (leader or admin)
+    Route::post('/team-projects/{teamProject}/members', [TeamProjectController::class, 'addMember'])->name('team-projects.members.add');
+    Route::delete('/team-projects/{teamProject}/members/{user}', [TeamProjectController::class, 'removeMember'])->name('team-projects.members.remove');
+
+    // Plan / todolist
+    Route::post('/team-projects/{teamProject}/todos', [TeamProjectTodoController::class, 'store'])->name('team-projects.todos.store');
+    Route::patch('/team-projects/{teamProject}/todos/{todo}', [TeamProjectTodoController::class, 'update'])->name('team-projects.todos.update');
+    Route::delete('/team-projects/{teamProject}/todos/{todo}', [TeamProjectTodoController::class, 'destroy'])->name('team-projects.todos.destroy');
+
+    // Shared files
+    Route::post('/team-projects/{teamProject}/files', [TeamProjectFileController::class, 'store'])->name('team-projects.files.store');
+    Route::delete('/team-projects/{teamProject}/files/{file}', [TeamProjectFileController::class, 'destroy'])->name('team-projects.files.destroy');
+
+    // Internal team chat
+    Route::post('/team-projects/{teamProject}/messages', [TeamProjectMessageController::class, 'store'])->name('team-projects.messages.store');
+
+    // Project-scoped client thread (leader-gated for posting)
+    Route::get('/team-projects/{teamProject}/client-thread', [TeamProjectController::class, 'clientThread'])->name('team-projects.client-thread');
+    Route::post('/team-projects/{teamProject}/client-message', [TeamProjectController::class, 'sendClientMessage'])->name('team-projects.client-message');
+});
+
+// --- CLIENT TEAM PROJECTS ---
+Route::prefix('client')->middleware(['auth', 'role:Client'])->group(function () {
+    Route::get('/team-projects', [TeamProjectController::class, 'index'])->name('client.team-projects.index');
+    Route::get('/team-projects/{teamProject}', [TeamProjectController::class, 'show'])->name('client.team-projects.show');
+    Route::get('/team-projects/{teamProject}/client-thread', [TeamProjectController::class, 'clientThread'])->name('client.team-projects.client-thread');
+});
+
+// --- EMPLOYEE TEAM PROJECTS ---
+Route::prefix('employee')->middleware(['auth', 'can:view team projects'])->group(function () {
+    Route::get('/team-projects', [TeamProjectController::class, 'index'])->name('employee.team-projects.index');
+    Route::get('/team-projects/{teamProject}', [TeamProjectController::class, 'show'])->name('employee.team-projects.show');
+    Route::get('/team-projects/{teamProject}/edit', [TeamProjectController::class, 'edit'])->name('employee.team-projects.edit');
+    Route::put('/team-projects/{teamProject}', [TeamProjectController::class, 'update'])->name('employee.team-projects.update');
+    Route::post('/team-projects/{teamProject}/transition', [TeamProjectController::class, 'transition'])->name('employee.team-projects.transition');
+    Route::post('/team-projects/{teamProject}/members', [TeamProjectController::class, 'addMember'])->name('employee.team-projects.members.add');
+    Route::delete('/team-projects/{teamProject}/members/{user}', [TeamProjectController::class, 'removeMember'])->name('employee.team-projects.members.remove');
+    Route::post('/team-projects/{teamProject}/todos', [TeamProjectTodoController::class, 'store'])->name('employee.team-projects.todos.store');
+    Route::patch('/team-projects/{teamProject}/todos/{todo}', [TeamProjectTodoController::class, 'update'])->name('employee.team-projects.todos.update');
+    Route::delete('/team-projects/{teamProject}/todos/{todo}', [TeamProjectTodoController::class, 'destroy'])->name('employee.team-projects.todos.destroy');
+    Route::post('/team-projects/{teamProject}/files', [TeamProjectFileController::class, 'store'])->name('employee.team-projects.files.store');
+    Route::delete('/team-projects/{teamProject}/files/{file}', [TeamProjectFileController::class, 'destroy'])->name('employee.team-projects.files.destroy');
+    Route::post('/team-projects/{teamProject}/messages', [TeamProjectMessageController::class, 'store'])->name('employee.team-projects.messages.store');
 });
 
 // --- FINANCE ADMIN ---
 Route::middleware(['auth', 'role:Finance Admin'])->group(function () {
     Route::get('/finance/billing', [BillingController::class, 'index'])->name('finance.billing');
     Route::post('/finance/clients/{client}/reminders', [BillingController::class, 'sendReminder'])->name('finance.reminders.send');
+    Route::post('/finance/clients/{client}/record-payment', [BillingController::class, 'recordPayment'])->name('finance.payments.record');
 });
 
 // --- EMPLOYEE PORTAL ---
@@ -132,6 +242,7 @@ Route::middleware(['auth', 'role:Employee'])->group(function () {
     Route::post('/daily-tasks', [WorkspaceController::class, 'storeDailyTask'])->name('employee.daily-tasks.store');
     Route::patch('/daily-tasks/{dailyTask}/status', [WorkspaceController::class, 'updateDailyTaskStatus'])->name('employee.daily-tasks.status');
     Route::get('/performance', [WorkspaceController::class, 'performance'])->name('employee.performance');
+    Route::get('/workspace/clients/{client}/messages', [MessageController::class, 'indexForEmployee'])->name('employee.client.messages');
 });
 
 // --- INTERNAL FIRM ROUTES (Employees & Managers) ---

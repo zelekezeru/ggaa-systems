@@ -27,10 +27,11 @@ import WarningBtn from '@/Components/WarningBtn.vue';
 import SearchableMultiSelect from '@/Components/SearchableMultiSelect.vue';
 import TabGroup from '@/Components/TabGroup.vue';
 
-const props = defineProps({ 
+const props = defineProps({
     staff: Array,
     branches: Array,
-    serviceTypes: Array
+    serviceTypes: Array,
+    positions: Object,
 });
 
 const viewMode = ref('list');
@@ -62,6 +63,12 @@ const form = useForm({
     password: '',
     password_confirmation: '',
     profile_photo: null,
+    user_type: 'staff',          // 'staff' | 'client'
+    position: 'employee',         // staff role
+    position_title: '',
+    employment_type: 'full_time',
+    hire_date: '',
+    client_id: '',                // for user_type === 'client'
 });
 
 const openModal = (employee = null) => {
@@ -72,12 +79,20 @@ const openModal = (employee = null) => {
         form.email = employee.email;
         form.branch_id = employee.branch_id || '';
         form.service_type_ids = employee.service_types.map(st => st.id);
-        form.password = ''; 
+        form.password = '';
         form.password_confirmation = '';
+        form.user_type = 'staff';
+        form.position = employee.staff_profile?.position || 'employee';
+        form.position_title = employee.staff_profile?.position_title || '';
+        form.employment_type = employee.staff_profile?.employment_type || 'full_time';
+        form.hire_date = employee.staff_profile?.hire_date || '';
     } else {
         isEditing.value = false;
         form.reset();
         form.service_type_ids = [];
+        form.user_type = 'staff';
+        form.position = 'employee';
+        form.employment_type = 'full_time';
     }
     isModalOpen.value = true;
 };
@@ -321,6 +336,57 @@ const getCapacityColor = (percentage) => {
                         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{{ t('profile_photo') || 'Profile Photo' }}</label>
                         <input type="file" @input="form.profile_photo = $event.target.files[0]" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400" />
                         <p class="mt-1 text-[10px] text-slate-400">JPG, PNG or WEBP. Max 2MB.</p>
+                    </div>
+                </div>
+
+                <!-- User type radio (only on create) -->
+                <div v-if="!isEditing" class="mb-5">
+                    <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Account type</label>
+                    <div class="flex gap-3">
+                        <label class="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl ring-1 cursor-pointer transition-all"
+                            :class="form.user_type === 'staff' ? 'ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'ring-slate-200 dark:ring-slate-700'">
+                            <input v-model="form.user_type" type="radio" value="staff" class="text-blue-600" />
+                            <div>
+                                <div class="text-sm font-semibold">Staff member</div>
+                                <div class="text-[11px] text-slate-500">Internal user (employee, manager, finance, etc.)</div>
+                            </div>
+                        </label>
+                        <label class="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl ring-1 cursor-pointer transition-all"
+                            :class="form.user_type === 'client' ? 'ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'ring-slate-200 dark:ring-slate-700'">
+                            <input v-model="form.user_type" type="radio" value="client" class="text-blue-600" />
+                            <div>
+                                <div class="text-sm font-semibold">Client portal user</div>
+                                <div class="text-[11px] text-slate-500">External user with access to one client account</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Staff position fields -->
+                <div v-if="form.user_type === 'staff'" class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Staff position</label>
+                        <select v-model="form.position" required class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                            <option v-for="(label, key) in positions" :key="key" :value="key">{{ label }}</option>
+                        </select>
+                        <p v-if="form.errors.position" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.position }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Title (optional)</label>
+                        <input v-model="form.position_title" type="text" placeholder="e.g. Senior Tax Specialist"
+                            class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Employment type</label>
+                        <select v-model="form.employment_type" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                            <option value="full_time">Full-time</option>
+                            <option value="part_time">Part-time</option>
+                            <option value="contract">Contract</option>
+                        </select>
+                    </div>
+                    <div v-if="!isEditing">
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Hire date (optional)</label>
+                        <input v-model="form.hire_date" type="date" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
                     </div>
                 </div>
 

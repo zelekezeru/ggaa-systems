@@ -2,7 +2,9 @@
 import { computed, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import Dropdown from '@/Components/Dropdown.vue';
+import ThemeToggle from '@/Components/ThemeToggle.vue';
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
 import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline';
 
 const page = usePage();
@@ -83,21 +85,31 @@ const mobileMenuOpen = ref(false);
                             <div v-if="$page.url === '/employee/performance' || $page.url.startsWith('/employee/performance') || $page.url === '/performance'" 
                                  class="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_10px_rgba(79,70,229,0.5)]"></div>
                         </Link>
+                        
+                        <!-- Team Projects -->
+                        <Link
+                            :href="route('employee.team-projects.index')"
+                            class="relative px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 overflow-hidden group"
+                            :class="[
+                                $page.url === '/employee/team-projects' || $page.url.startsWith('/employee/team-projects') || $page.url === '/team-projects'
+                                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-500/10 shadow-sm ring-1 ring-indigo-100 dark:ring-indigo-500/20'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                            ]"
+                        >
+                            <span class="relative z-10">{{ $t('team_projects') }}</span>
+                            <div v-if="$page.url === '/employee/team-projects' || $page.url.startsWith('/employee/team-projects') || $page.url === '/team-projects'" 
+                                 class="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_10px_rgba(79,70,229,0.5)]"></div>
+                        </Link>
                     </nav>
                 </div>
 
                 <!-- Right: bell + username + sign out -->
                 <div class="flex items-center gap-3 sm:gap-4">
-                    <!-- Notification bell -->
-                    <button class="relative p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700/80 rounded-xl transition-all duration-300 border border-transparent dark:hover:border-slate-600">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
-                        <span
-                            v-if="notifications.length"
-                            class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]"
-                        />
-                    </button>
+                    <!-- Notification Bell -->
+                    <NotificationBell />
+                    
+                    <!-- Theme Toggle -->
+                    <ThemeToggle />
 
                     <div class="hidden sm:flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800">
                         <div class="flex flex-col items-end">
@@ -137,6 +149,7 @@ const mobileMenuOpen = ref(false);
                         <Link :href="route('employee.workspace')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/workspace') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('my_board') }}</Link>
                         <Link :href="route('employee.daily-tasks.index')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/daily-tasks') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('daily_tasks') }}</Link>
                         <Link :href="route('employee.performance')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/performance') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('performance') }}</Link>
+                        <Link :href="route('employee.team-projects.index')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/team-projects') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('team_projects') }}</Link>
                     </nav>
                 </div>
             </transition>
