@@ -44,6 +44,7 @@ class RoleAndPermissionSeeder extends Seeder
             'view finance billing',
             'send payment reminders',
             'record payments',
+            'manage billing',
             // Client management permissions
             'manage-clients',
             'view-clients',
@@ -52,9 +53,6 @@ class RoleAndPermissionSeeder extends Seeder
             // Task assignment permissions
             'assign-tasks',
             'unassign-tasks',
-            // Additional finance permissions
-            'manage-billing',
-            'send-payment-reminders',
             // Team project permissions
             'manage team projects',
             'view team projects',
@@ -128,8 +126,7 @@ class RoleAndPermissionSeeder extends Seeder
             'view finance billing',
             'send payment reminders',
             'record payments',
-            'manage-billing',
-            'send-payment-reminders',
+            'manage billing',
             'view team projects',
             'participate team project',
             'view ledger progress',

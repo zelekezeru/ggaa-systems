@@ -7,6 +7,11 @@ import NotificationBell from '@/Components/NotificationBell.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
+const userPermissions = computed(() => user.value?.permissions ?? []);
+const canViewBilling = computed(() => userPermissions.value.includes('view finance billing'));
+const canManageInvoices = computed(() => userPermissions.value.includes('manage service invoices'));
+const canViewLedgerProgress = computed(() => userPermissions.value.includes('view ledger progress'));
+const canViewProjects = computed(() => userPermissions.value.includes('view team projects'));
 </script>
 
 <template>
@@ -28,6 +33,7 @@ const user = computed(() => page.props.auth?.user);
 
                     <nav class="hidden md:flex items-center space-x-1">
                         <Link
+                            v-if="canViewBilling"
                             :href="route('finance.billing')"
                             class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
                             :class="$page.url.startsWith('/finance/billing') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
@@ -35,6 +41,7 @@ const user = computed(() => page.props.auth?.user);
                             {{ $t('billing') || 'Billing' }}
                         </Link>
                         <Link
+                            v-if="canManageInvoices"
                             :href="route('finance.invoices.index')"
                             class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
                             :class="$page.url.startsWith('/finance/invoices') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
@@ -42,6 +49,7 @@ const user = computed(() => page.props.auth?.user);
                             {{ $t('invoices') || 'Invoices' }}
                         </Link>
                         <Link
+                            v-if="canViewLedgerProgress"
                             :href="route('finance.ledger-progress')"
                             class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
                             :class="$page.url.startsWith('/finance/ledger-progress') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
@@ -49,6 +57,7 @@ const user = computed(() => page.props.auth?.user);
                             {{ $t('ledger_progress') || 'Ledger Progress' }}
                         </Link>
                         <Link
+                            v-if="canViewProjects"
                             :href="route('team-projects.index')"
                             class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
                             :class="$page.url.startsWith('/team-projects') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"

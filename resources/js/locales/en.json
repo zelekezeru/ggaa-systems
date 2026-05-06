@@ -433,5 +433,21 @@
     "sene": "Sene",
     "hamle": "Hamle",
     "nehase": "Nehase",
-    "pagume": "Pagume"
+    "pagume": "Pagume",
+    "revenue_and_receivables": "Revenue & Receivables",
+    "manage_billing_description": "Manage client retainers, track payment statuses, and send automated reminders.",
+    "billing_period": "Billing Period",
+    "total_expected_desc": "Based on active retainers",
+    "overdue_desc": "Requires immediate follow-up",
+    "collection_rate": "collection rate",
+    "monthly_retainer": "Monthly Retainer",
+    "cleared": "CLEARED",
+    "record_payment": "Record Payment",
+    "remind": "Remind",
+    "amount_received": "Amount Received",
+    "never_sent": "Never Sent",
+    "billing": "Billing",
+    "revenue": "Revenue",
+    "finance": "Finance",
+    "ledger_progress": "Ledger Progress"
 }

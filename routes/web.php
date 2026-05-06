@@ -269,10 +269,13 @@ Route::prefix('portal')->middleware(['auth', 'role:Client'])->group(function () 
 });
 
 // --- FINANCE ADMIN ---
-Route::middleware(['auth', 'role:Finance Admin'])->group(function () {
-    Route::get('/finance/billing', [BillingController::class, 'index'])->name('finance.billing');
-    Route::post('/finance/clients/{client}/reminders', [BillingController::class, 'sendReminder'])->name('finance.reminders.send');
-    Route::post('/finance/clients/{client}/record-payment', [BillingController::class, 'recordPayment'])->name('finance.payments.record');
+Route::middleware(['auth', 'role:Finance Admin|Super Admin'])->group(function () {
+    Route::get('/finance/billing', [BillingController::class, 'index'])
+        ->middleware('can:view finance billing')->name('finance.billing');
+    Route::post('/finance/clients/{client}/reminders', [BillingController::class, 'sendReminder'])
+        ->middleware('can:send payment reminders')->name('finance.reminders.send');
+    Route::post('/finance/clients/{client}/record-payment', [BillingController::class, 'recordPayment'])
+        ->middleware('can:record payments')->name('finance.payments.record');
 
     // Ledger progress (read-only across all clients)
     Route::get('/finance/ledger-progress', [LedgerProgressController::class, 'index'])

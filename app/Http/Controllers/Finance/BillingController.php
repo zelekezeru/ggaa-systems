@@ -20,7 +20,8 @@ class BillingController extends Controller
             'company_name',
             'retainer_fee',
             'last_payment_date',
-            'payment_status'
+            'payment_status',
+            'last_reminder_sent_at'
         )->get();
 
         $overdue = $clients->filter(function ($c) {
@@ -50,8 +51,13 @@ class BillingController extends Controller
         $clientUser = User::where('client_id', $client->id)->first();
 
         if ($clientUser) {
-            $clientUser->notify(new VatDeadlineReminder($client));
+            $task = $client->tasks()->first(); // or use appropriate query to get the Task
+            if ($task) {
+                $clientUser->notify(new VatDeadlineReminder($task));
+            }
         }
+
+        $client->update(['last_reminder_sent_at' => now()]);
 
         return back()->with('success', "Reminder sent to {$client->company_name}.");
     }

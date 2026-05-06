@@ -440,5 +440,21 @@
     "sene": "ሰኔ",
     "hamle": "ሐምሌ",
     "nehase": "ነሐሴ",
-    "pagume": "ጳጉሜ"
+    "pagume": "ጳጉሜ",
+    "revenue_and_receivables": "ገቢ እና ተሰብሳቢ ሂሳቦች",
+    "manage_billing_description": "የደንበኞችን ወርሃዊ ክፍያ ያስተዳድሩ፣ የክፍያ ሁኔታን ይከታተሉ እና አውቶማቲክ ማሳሰቢያዎችን ይላኩ።",
+    "billing_period": "የክፍያ ወቅት",
+    "total_expected_desc": "ከንቁ ደንበኞች የሚጠበቅ",
+    "overdue_desc": "አፋጣኝ ክትትል የሚያስፈልገው",
+    "collection_rate": "የክፍያ አሰባሰብ ፍጥነት",
+    "monthly_retainer": "ወርሃዊ የጥበቃ ክፍያ",
+    "cleared": "ተከፍሏል",
+    "record_payment": "ክፍያ መዝግብ",
+    "remind": "አሳስብ",
+    "amount_received": "የተቀበሉት የገንዘብ መጠን",
+    "never_sent": "አልተላከም",
+    "billing": "ክፍያ",
+    "revenue": "ገቢ",
+    "finance": "ፋይናንስ",
+    "ledger_progress": "የሌጀር ሂደት"
 }

@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import EmployeeLayout from '@/Layouts/EmployeeLayout.vue';
+import FinanceLayout from '@/Layouts/FinanceLayout.vue';
 import PageHeader from '@/Components/PageHeader.vue';
 import { BookOpenIcon, MagnifyingGlassIcon, CheckCircleIcon, ClockIcon, PencilSquareIcon } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
@@ -13,6 +16,14 @@ const props = defineProps({
     ethiopianMonths: Array,
     currentEthYear: Number,
     canVerify: Boolean,
+});
+ 
+const page = usePage();
+const currentLayout = computed(() => {
+    const roles = page.props.auth.user.roles || [];
+    if (roles.includes('Employee')) return EmployeeLayout;
+    if (roles.includes('Finance Admin')) return FinanceLayout;
+    return AdminLayout;
 });
 
 const search = ref('');
@@ -72,7 +83,7 @@ const completedCount = computed(() => {
 
 <template>
     <Head :title="t('financial_ledger')" />
-    <AdminLayout>
+    <component :is="currentLayout">
         <div class="py-6 px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto">
             <PageHeader :title="t('financial_ledger')" :description="t('monthly_pnl_tracking')">
                 <template #icon><BookOpenIcon class="h-6 w-6" /></template>
@@ -187,5 +198,5 @@ const completedCount = computed(() => {
                 </div>
             </div>
         </div>
-    </AdminLayout>
+    </component>
 </template>

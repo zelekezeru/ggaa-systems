@@ -61,7 +61,7 @@ return new class extends Migration
             $table->timestamp('submitted_at')->nullable();
             $table->timestamp('verified_at')->nullable();
 
-            $table->foreignId('team_project_id')->nullable()->after('client_id')->constrained('team_projects')->nullOnDelete();
+            $table->foreignId('team_project_id')->nullable()->constrained('team_projects')->nullOnDelete();
 
             $table->timestamps();
 

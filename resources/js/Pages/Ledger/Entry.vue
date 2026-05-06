@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import EmployeeLayout from '@/Layouts/EmployeeLayout.vue';
+import FinanceLayout from '@/Layouts/FinanceLayout.vue';
 import { useToast } from 'vue-toastification';
 import {
     BookOpenIcon, ChevronLeftIcon, CheckBadgeIcon,
@@ -22,6 +25,14 @@ const props = defineProps({
     ethiopianMonths: Array,
     currentEthYear: Number,
     canVerify: Boolean,
+});
+ 
+const page = usePage();
+const currentLayout = computed(() => {
+    const roles = page.props.auth.user.roles || [];
+    if (roles.includes('Employee')) return EmployeeLayout;
+    if (roles.includes('Finance Admin')) return FinanceLayout;
+    return AdminLayout;
 });
 
 // ── Month / Year Selection ──
@@ -280,7 +291,7 @@ const statusBadge = computed(() => {
 
 <template>
     <Head :title="`Ledger — ${client.company_name}`" />
-    <AdminLayout>
+    <component :is="currentLayout">
         <div class="py-6 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
 
             <!-- Header -->
@@ -652,5 +663,5 @@ const statusBadge = computed(() => {
                 </div>
             </div>
         </div>
-    </AdminLayout>
+    </component>
 </template>
