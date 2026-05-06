@@ -12,18 +12,14 @@ return new class extends Migration
             $table->id();
             $table->foreignId('service_invoice_id')->constrained()->cascadeOnDelete();
             $table->decimal('amount', 12, 2);
-            $table->enum('payment_method', ['cash', 'bank_transfer', 'check', 'mobile_money', 'card_payment' 'other'])->default('bank_transfer');
+            $table->enum('payment_method', ['cash', 'bank_transfer', 'check', 'mobile_money', 'card_payment', 'other'])->default('bank_transfer');
             $table->string('reference')->nullable();
             $table->date('paid_at');
             $table->foreignId('recorded_by')->constrained('users');
             $table->text('notes')->nullable();
             $table->timestamps();
-            $table->string('payment_method')
 
             $table->index('service_invoice_id');
-            $table->string('receipt_link')->nullable();
-            $table->string('receipt_photo_path')->nullable();
-            $table->string('status')->default('Completed');
         });
     }
 
