@@ -158,4 +158,27 @@ class AdminClientController extends Controller
 
         return back()->with('success', 'Client deleted successfully.');
     }
+
+    public function resetPassword(Client $client)
+    {
+        abort_unless(auth()->user()->hasAnyRole(['Super Admin', 'Branch Manager']), 403, 'Unauthorized access.');
+
+        $user = $client->user;
+        if (!$user) {
+            return back()->with('error', 'No portal user found for this client.');
+        }
+
+        // Send reset link
+        try {
+            $status = \Illuminate\Support\Facades\Password::sendResetLink(['email' => $user->email]);
+            
+            return $status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT
+                ? back()->with('success', 'Password reset link sent to ' . $user->email)
+                : back()->with('error', 'Unable to send reset link.');
+        } catch (\Exception $e) {
+            // Fallback: reset to TIN if mail is not configured
+            $user->update(['password' => \Illuminate\Support\Facades\Hash::make($client->tin_number)]);
+            return back()->with('success', 'Portal password reset to TIN number (email failed to send).');
+        }
+    }
 }

@@ -1,0 +1,248 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Exports\LedgerReportExport;
+use App\Models\BankAccount;
+use App\Models\BankAccountBalance;
+use App\Models\Client;
+use App\Models\MonthlyLedger;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
+
+class MonthlyLedgerController extends Controller
+{
+    public function index()
+    {
+        $user = Auth::user();
+
+        $clients = Client::with(['assignedEmployee', 'branch', 'user'])
+            ->get()
+            ->map(function ($client) {
+                $ledgers = MonthlyLedger::where('client_id', $client->id)
+                    ->get()
+                    ->keyBy(fn ($l) => $l->eth_year . '_' . $l->eth_month)
+                    ->map(fn ($l) => $l->only(['id', 'eth_year', 'eth_month', 'status']) + ['net_profit' => $l->net_profit]);
+
+                return [
+                    'id'                   => $client->id,
+                    'company_name'         => $client->company_name,
+                    'tin_number'           => $client->tin_number,
+                    'email'                => $client->user?->email,
+                    'email_verified'       => !!$client->user?->email_verified_at,
+                    'branch'               => $client->branch?->name,
+                    'assigned_employee'    => $client->assignedEmployee?->name,
+                    'ledger_summary'       => $ledgers,
+                ];
+            });
+
+        return Inertia::render('Ledger/Index', [
+            'clients'         => $clients,
+            'ethiopianMonths' => MonthlyLedger::ethiopianMonths(),
+            'currentEthYear'  => $this->currentEthYear(),
+            'canVerify'       => $user->hasAnyRole(['Super Admin', 'Branch Manager']),
+        ]);
+    }
+
+    public function show(Client $client)
+    {
+        // The Client global scope enforces branch/employee access automatically.
+        // If the user can't see this client, the model will 404.
+        abort_unless(Client::find($client->id), 403);
+
+        $user = Auth::user();
+
+        $ledgers = MonthlyLedger::where('client_id', $client->id)
+            ->with(['submittedBy:id,name', 'verifiedBy:id,name', 'bankAccountBalances.bankAccount'])
+            ->get()
+            ->keyBy(fn ($l) => $l->eth_year . '_' . $l->eth_month);
+
+        $bankAccounts = BankAccount::where('client_id', $client->id)
+            ->where('is_active', true)
+            ->get(['id', 'bank_name', 'account_number', 'account_type']);
+
+        return Inertia::render('Ledger/Entry', [
+            'client'          => [
+                'id'           => $client->id,
+                'company_name' => $client->company_name,
+                'tin_number'   => $client->tin_number,
+                'email'        => $client->user?->email,
+                'email_verified' => !!$client->user?->email_verified_at,
+            ],
+            'ledgers'         => $ledgers,
+            'bankAccounts'    => $bankAccounts,
+            'ethiopianMonths' => MonthlyLedger::ethiopianMonths(),
+            'currentEthYear'  => $this->currentEthYear(),
+            'canVerify'       => $user->hasAnyRole(['Super Admin', 'Branch Manager']),
+        ]);
+    }
+
+    public function store(Request $request, Client $client)
+    {
+        abort_unless(Client::find($client->id), 403);
+
+        $validated = $this->validateLedgerData($request);
+        $validated['client_id']    = $client->id;
+        $validated['submitted_by'] = Auth::id();
+
+        if ($validated['status'] === 'submitted') {
+            $validated['submitted_at'] = now();
+        }
+
+        $ledger = MonthlyLedger::create($validated);
+
+        $this->syncBankBalances($ledger, $request->input('bank_balances', []));
+
+        return back()->with('success', 'Ledger entry saved for ' . $validated['eth_month'] . ' ' . $validated['eth_year'] . '.');
+    }
+
+    public function update(Request $request, MonthlyLedger $ledger)
+    {
+        $user = Auth::user();
+
+        // Verified entries can only be re-opened by managers/admins
+        if ($ledger->status === 'verified') {
+            abort_unless($user->hasAnyRole(['Super Admin', 'Branch Manager']), 403, 'Only a manager can edit a verified entry.');
+        }
+
+        $validated = $this->validateLedgerData($request, $ledger);
+
+        if ($validated['status'] === 'submitted' && $ledger->status === 'draft') {
+            $validated['submitted_at'] = now();
+            $validated['submitted_by'] = Auth::id();
+        }
+
+        $ledger->update($validated);
+
+        $this->syncBankBalances($ledger, $request->input('bank_balances', []));
+
+        return back()->with('success', 'Entry updated successfully.');
+    }
+
+    public function downloadPdf(MonthlyLedger $ledger)
+    {
+        $ledger->loadMissing(['client', 'submittedBy', 'verifiedBy', 'bankAccountBalances.bankAccount']);
+
+        $fmt = fn ($v) => number_format((float) $v, 2);
+
+        $pdf = Pdf::loadView('exports.ledger-report', compact('ledger', 'fmt'))
+            ->setPaper('a4', 'portrait');
+
+        $filename = 'Ledger_' . preg_replace('/\s+/', '_', $ledger->client->company_name)
+            . '_' . $ledger->eth_month . '_' . $ledger->eth_year . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    public function downloadXlsx(MonthlyLedger $ledger)
+    {
+        $filename = 'Ledger_' . preg_replace('/\s+/', '_', $ledger->client->company_name)
+            . '_' . $ledger->eth_month . '_' . $ledger->eth_year . '.xlsx';
+
+        return Excel::download(new LedgerReportExport($ledger), $filename);
+    }
+
+    public function verify(MonthlyLedger $ledger)
+    {
+        abort_unless(Auth::user()->hasAnyRole(['Super Admin', 'Branch Manager']), 403);
+
+        $ledger->update([
+            'status'      => 'verified',
+            'verified_by' => Auth::id(),
+            'verified_at' => now(),
+        ]);
+
+        return back()->with('success', 'Entry verified.');
+    }
+
+    public function storeBankAccount(Request $request, Client $client)
+    {
+        abort_unless(Client::find($client->id), 403);
+
+        $validated = $request->validate([
+            'bank_name'      => 'required|string|max:100',
+            'account_number' => 'required|string|max:50',
+            'account_type'   => 'required|in:current,savings,overdraft,lc',
+        ]);
+
+        BankAccount::create(array_merge($validated, ['client_id' => $client->id]));
+
+        return back()->with('success', 'Bank account added.');
+    }
+
+    // ── Private Helpers ──
+
+    private function validateLedgerData(Request $request, ?MonthlyLedger $existing = null): array
+    {
+        $monthRule = Rule::in(MonthlyLedger::ethiopianMonths());
+
+        return $request->validate([
+            'eth_year'  => 'required|integer|min:2000|max:2100',
+            'eth_month' => ['required', $monthRule],
+            'status'    => 'required|in:draft,submitted',
+
+            'cash_machine_sales'  => 'nullable|numeric|min:0',
+            'manual_sales'        => 'nullable|numeric|min:0',
+
+            'beginning_inventory' => 'nullable|numeric|min:0',
+            'purchases'           => 'nullable|numeric|min:0',
+            'ending_inventory'    => 'nullable|numeric|min:0',
+
+            'salary_expense'             => 'nullable|numeric|min:0',
+            'pension_expense'            => 'nullable|numeric|min:0',
+            'printing_expense'           => 'nullable|numeric|min:0',
+            'shed_rent'                  => 'nullable|numeric|min:0',
+            'stationery_expense'         => 'nullable|numeric|min:0',
+            'office_rent_expense'        => 'nullable|numeric|min:0',
+            'transport_expense'          => 'nullable|numeric|min:0',
+            'machine_fa_expense'         => 'nullable|numeric|min:0',
+            'eeu_expense'                => 'nullable|numeric|min:0',
+            'maintenance_expense'        => 'nullable|numeric|min:0',
+            'advertising_expense'        => 'nullable|numeric|min:0',
+            'uniform_expense'            => 'nullable|numeric|min:0',
+            'indirect_materials_expense' => 'nullable|numeric|min:0',
+            'depreciation_expense'       => 'nullable|numeric|min:0',
+            'legal_fee_expense'          => 'nullable|numeric|min:0',
+            'bank_interest_expense'      => 'nullable|numeric|min:0',
+            'bank_service_charge'        => 'nullable|numeric|min:0',
+
+            'sales_vat'       => 'nullable|numeric|min:0',
+            'purchase_vat'    => 'nullable|numeric|min:0',
+            'withholding_tax' => 'nullable|numeric|min:0',
+
+            'notes' => 'nullable|string|max:1000',
+        ]);
+    }
+
+    private function syncBankBalances(MonthlyLedger $ledger, array $bankBalances): void
+    {
+        foreach ($bankBalances as $accountId => $data) {
+            BankAccountBalance::updateOrCreate(
+                ['bank_account_id' => $accountId, 'monthly_ledger_id' => $ledger->id],
+                [
+                    'balance'          => $data['balance'] ?? 0,
+                    'loan_amount'      => $data['loan_amount'] ?? 0,
+                    'lc_margin_release'=> $data['lc_margin_release'] ?? 0,
+                    'transfer_in'      => $data['transfer_in'] ?? 0,
+                    'transfer_reversal'=> $data['transfer_reversal'] ?? 0,
+                ]
+            );
+        }
+    }
+
+    private function currentEthYear(): int
+    {
+        // Ethiopian year is ~7-8 years behind Gregorian.
+        // New Ethiopian year starts ~11 Sep (Gregorian).
+        $now = now();
+        $ethYear = $now->year - 7;
+        if ($now->month < 9 || ($now->month === 9 && $now->day < 11)) {
+            $ethYear--;
+        }
+        return $ethYear;
+    }
+}

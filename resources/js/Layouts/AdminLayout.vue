@@ -22,7 +22,9 @@ import {
     DocumentDuplicateIcon,
     ChevronDownIcon,
     ChevronUpIcon,
-    RectangleGroupIcon
+    RectangleGroupIcon,
+    BookOpenIcon,
+    BanknotesIcon
 } from '@heroicons/vue/24/outline';
 
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
@@ -44,7 +46,8 @@ watch(() => page.props.flash, (flash) => {
 // based on locale, with RTL support for Arabic).
 
 const openDropdowns = ref({
-    task_management: page.url.startsWith('/super-admin/tasks') || page.url.startsWith('/super-admin/task-types')
+    task_management: page.url.startsWith('/super-admin/tasks') || page.url.startsWith('/super-admin/task-types'),
+    finance_management: page.url.startsWith('/ledger') || page.url.startsWith('/finance')
 });
 
 const toggleDropdown = (key) => {
@@ -54,9 +57,6 @@ const toggleDropdown = (key) => {
 const navigation = computed(() => [
     { name: t('dashboard'), href: route('super-admin.dashboard'), icon: Squares2X2Icon, current: page.url === '/super-admin/dashboard' },
     { name: t('branches'), href: route('super-admin.branches'), icon: BuildingOfficeIcon, current: page.url.startsWith('/super-admin/branches') },
-    { name: t('staff'), href: route('super-admin.staff'), icon: UserGroupIcon, current: page.url.startsWith('/super-admin/staff') },
-    { name: t('customers') || 'Customers', href: route('super-admin.clients'), icon: UsersIcon, current: page.url.startsWith('/super-admin/clients') },
-    { name: t('service_types') || 'Service configs', href: route('super-admin.service-types'), icon: WrenchScrewdriverIcon, current: page.url.startsWith('/super-admin/service-types') },
     { 
         name: t('task_management') || 'Task Management', 
         key: 'task_management',
@@ -69,6 +69,21 @@ const navigation = computed(() => [
         ]
     },
     { name: t('team_projects') || 'Team Projects', href: route('team-projects.index'), icon: RectangleGroupIcon, current: page.url.startsWith('/team-projects') },
+    { 
+        name: t('finance') || 'Finance', 
+        key: 'finance_management',
+        icon: BanknotesIcon,
+        current: page.url.startsWith('/ledger') || page.url.startsWith('/finance'),
+        children: [
+            { name: t('financial_ledger') || "Financial Ledger", href: route('ledger.index'), current: page.url.startsWith('/ledger') },
+            { name: t('billing') || 'Billing & Revenue', href: route('finance.billing'), current: page.url.startsWith('/finance/billing') },
+            { name: t('invoices') || 'Invoices', href: route('finance.invoices.index'), current: page.url.startsWith('/finance/invoices') },
+            { name: t('ledger_progress') || 'Ledger Progress', href: route('finance.ledger-progress'), current: page.url.startsWith('/finance/ledger-progress') },
+        ]
+    },
+    { name: t('customers') || 'Customers', href: route('super-admin.clients'), icon: UsersIcon, current: page.url.startsWith('/super-admin/clients') },
+    { name: t('staff'), href: route('super-admin.staff'), icon: UserGroupIcon, current: page.url.startsWith('/super-admin/staff') },
+    { name: t('service_types') || 'Service configs', href: route('super-admin.service-types'), icon: WrenchScrewdriverIcon, current: page.url.startsWith('/super-admin/service-types') },
     { name: t('role_management'), href: route('super-admin.roles.index'), icon: ShieldCheckIcon, current: page.url.startsWith('/super-admin/roles') },
     { name: t('reports'), href: route('super-admin.reports'), icon: ChartBarIcon, current: page.url.startsWith('/super-admin/reports') },
 ]);

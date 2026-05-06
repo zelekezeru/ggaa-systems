@@ -49,7 +49,7 @@ function fmt(iso) {
     <component :is="layout">
         <div class="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
             <div class="flex items-center justify-between flex-wrap gap-3">
-                <PageHeader title="Notifications" :subtitle="`${unreadCount} unread`" />
+                <PageHeader title="Notifications" :description="`${unreadCount} unread`" />
                 <button
                     v-if="unreadCount > 0"
                     @click="markAllRead"

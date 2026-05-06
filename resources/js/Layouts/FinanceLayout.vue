@@ -30,21 +30,30 @@ const user = computed(() => page.props.auth?.user);
                         <Link
                             :href="route('finance.billing')"
                             class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                            :class="$page.url.startsWith('/finance') ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
+                            :class="$page.url.startsWith('/finance/billing') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
                         >
-                            {{ $t('revenue_receivables') }}
+                            {{ $t('billing') || 'Billing' }}
                         </Link>
                         <Link
-                            href="#"
-                            class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                            :href="route('finance.invoices.index')"
+                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                            :class="$page.url.startsWith('/finance/invoices') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
                         >
-                            {{ $t('invoices') }}
+                            {{ $t('invoices') || 'Invoices' }}
                         </Link>
                         <Link
-                            href="#"
-                            class="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                            :href="route('finance.ledger-progress')"
+                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                            :class="$page.url.startsWith('/finance/ledger-progress') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
                         >
-                            {{ $t('reports') }}
+                            {{ $t('ledger_progress') || 'Ledger Progress' }}
+                        </Link>
+                        <Link
+                            :href="route('team-projects.index')"
+                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                            :class="$page.url.startsWith('/team-projects') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
+                        >
+                            {{ $t('team_projects') || 'Team Projects' }}
                         </Link>
                     </nav>
                 </div>

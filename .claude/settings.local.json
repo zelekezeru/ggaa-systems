@@ -4,7 +4,29 @@
       "Bash(php -l app/Models/User.php app/Models/Task.php app/Models/TaskComment.php app/Models/Achievement.php)",
       "Bash(php artisan *)",
       "Bash(Get-ChildItem -Path \"e:\\\\WebDev\\\\ggaa-systems\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"d:\\\\CODE\\\\ggaa-systems\" -Force)",
+      "Bash(Select-Object -Property Name, PSIsContainer)",
+      "Bash(ls -la d:\\\\\\\\CODE\\\\\\\\ggaa-systems)",
+      "Bash(cd /d)",
+      "Bash(find . -maxdepth 2 -type d -name \"ggaa-systems\")",
+      "Bash(cd /d D:\\\\CODE\\\\ggaa-systems)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('resources/js/Pages/Ledger/Entry.vue', 'utf8'\\); const lines = content.split\\('\\\\n'\\); lines.forEach\\(\\(line, i\\) => { if \\(line.includes\\(\\\\\"\\\\\\\\\\\\\\\\'\\\\\"\\)\\) console.log\\(i+1, JSON.stringify\\(line\\)\\); }\\);\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('D:/CODE/ggaa-systems/resources/js/Pages/Ledger/Entry.vue', 'utf8'\\); const lines = content.split\\('\\\\n'\\); lines.forEach\\(\\(line, i\\) => { if \\(line.includes\\(\\\\\"\\\\\\\\\\\\\\\\'\\\\\"\\)\\) console.log\\(i+1, JSON.stringify\\(line\\)\\); }\\);\")",
+      "Bash(node -e ' *)",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq \"\" } | Select-Object Id, CPU, WorkingSet, StartTime | Format-Table)",
+      "Bash(composer require *)",
+      "Read(//c/xampp/php/**)",
+      "Bash(php -m)",
+      "Bash(grep -i \"^zip$\")",
+      "Bash(composer dump-autoload *)",
+      "Bash(composer why *)",
+      "Bash(php -r '$j=json_decode\\(file_get_contents\\('\\\\''__TRACKED_VAR__'\\\\''\\),true\\);if\\(isset\\($j['\\\\''require'\\\\'']['\\\\''php'\\\\'']\\) && strpos\\($j['\\\\''require'\\\\'']['\\\\''php'\\\\''],'\\\\''8.3'\\\\''\\)!==false\\)echo '\\\\''__TRACKED_VAR__ => '\\\\''.$j['\\\\''require'\\\\'']['\\\\''php'\\\\''].PHP_EOL;')",
+      "Bash(php -r '$j=json_decode\\(file_get_contents\\('\\\\''__TRACKED_VAR__'\\\\''\\),true\\); if\\(isset\\($j['\\\\''require'\\\\'']['\\\\''php'\\\\'']\\)\\){ $r=$j['\\\\''require'\\\\'']['\\\\''php'\\\\'']; if\\(preg_match\\('\\\\''/[\\\\^~]?8\\\\.3/'\\\\'',$r\\) && !strpos\\($r,'\\\\''8.2'\\\\''\\)\\){echo '\\\\''__TRACKED_VAR__ => '\\\\''.$r.PHP_EOL;} }')",
+      "Bash(php -r ' *)"
+    ],
+    "additionalDirectories": [
+      "C:\\xampp\\php"
     ]
   }
 }

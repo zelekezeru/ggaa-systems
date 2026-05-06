@@ -70,7 +70,7 @@ function quickAssign(taskId, employeeId) {
     <Head title="Team Availability" />
     <AdminLayout>
         <div class="p-4 sm:p-6 lg:p-8 space-y-6">
-            <PageHeader title="Team Availability" subtitle="Who is free, who is hot, and where the next task should land." />
+            <PageHeader title="Team Availability" description="Who is free, who is hot, and where the next task should land." />
 
             <!-- Summary cards -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">

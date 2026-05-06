@@ -4,6 +4,7 @@ import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import ClientLayout from '@/Layouts/ClientLayout.vue';
 import EmployeeLayout from '@/Layouts/EmployeeLayout.vue';
+import FinanceLayout from '@/Layouts/FinanceLayout.vue';
 import {
     ArrowLeftIcon, RectangleGroupIcon, UserGroupIcon, ClipboardDocumentListIcon,
     PaperClipIcon, ChatBubbleLeftRightIcon, BuildingOffice2Icon,
@@ -48,6 +49,7 @@ const currentLayout = computed(() => {
     const roles = page.props.auth.user.roles || [];
     if (roles.includes('Client')) return ClientLayout;
     if (roles.includes('Employee')) return EmployeeLayout;
+    if (roles.includes('Finance Admin')) return FinanceLayout;
     return AdminLayout;
 });
 
@@ -161,6 +163,14 @@ const sendClientMessage = () => {
 
 // progress
 const progress = computed(() => props.project.progress_percent ?? 0);
+
+const daysRemaining = computed(() => {
+    if (!props.project.due_date) return 0;
+    const due = new Date(props.project.due_date);
+    const now = new Date();
+    const diff = due - now;
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+});
 </script>
 
 <template>
@@ -255,13 +265,13 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                                 <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">New Task</h3>
                                 <div class="grid md:grid-cols-12 gap-3">
                                     <input v-model="todoForm.title" type="text" placeholder="Task objective..."
-                                        class="md:col-span-5 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
-                                    <select v-model="todoForm.assigned_to" class="md:col-span-3 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                                        class="md:col-span-5 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                                    <select v-model="todoForm.assigned_to" class="md:col-span-3 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                                         <option value="">Unassigned</option>
                                         <option v-for="m in project.active_members" :key="m.user_id" :value="m.user_id">{{ m.user.name }}</option>
                                     </select>
                                     <input v-model="todoForm.due_date" type="date"
-                                        class="md:col-span-2 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                                        class="md:col-span-2 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                                     <button @click="submitTodo" :disabled="todoForm.processing || !todoForm.title"
                                         class="md:col-span-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all">
                                         <PlusIcon class="h-4 w-4" /> Add
@@ -295,7 +305,7 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                                     </div>
                                     <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <select :value="todo.status" @change="updateTodoStatus(todo, $event.target.value)"
-                                            class="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 focus:ring-0 focus:border-blue-500 transition-all">
+                                            class="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-white focus:ring-0 focus:border-blue-500 transition-all">
                                             <option value="todo">To do</option>
                                             <option value="in_progress">In progress</option>
                                             <option value="done">Done</option>
@@ -313,14 +323,14 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                             <div v-if="canManage" class="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 space-y-4">
                                 <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Enlist Team Member</h3>
                                 <div class="grid md:grid-cols-12 gap-3">
-                                    <select v-model="memberForm.user_id" class="md:col-span-7 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                                    <select v-model="memberForm.user_id" class="md:col-span-7 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                                         <option value="">Select staff member…</option>
                                         <option v-for="s in staffOptions" :key="s.id" :value="s.id">
                                             {{ s.name }} — {{ s.position_label }} (load: {{ s.capacity_load }})
                                         </option>
                                     </select>
                                     <input v-model.number="memberForm.complexity_share" type="number" min="1" max="10"
-                                        class="md:col-span-3 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                        class="md:col-span-3 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                                         placeholder="Complexity Share" />
                                     <button @click="addMember" :disabled="memberForm.processing || !memberForm.user_id"
                                         class="md:col-span-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 disabled:opacity-50 shadow-md active:scale-95 transition-all">
@@ -431,7 +441,7 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                             </div>
                             <form v-if="isMember || canManage" @submit.prevent="sendChat" class="flex gap-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-inner">
                                 <input v-model="chatForm.body" type="text" placeholder="Share updates with the team..."
-                                    class="flex-1 bg-white dark:bg-slate-800 px-5 py-3 rounded-2xl border border-slate-100 dark:border-slate-700 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                                    class="flex-1 bg-white dark:bg-slate-800 px-5 py-3 rounded-2xl border border-slate-100 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                                 <button type="submit" :disabled="chatForm.processing || !chatForm.body"
                                     class="px-6 py-3 rounded-2xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 disabled:opacity-50 shadow-lg shadow-blue-600/20 active:scale-95 transition-all">Send</button>
                             </form>
@@ -475,7 +485,7 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                             </div>
                             <form v-if="isLeader || canManage" @submit.prevent="sendClientMessage" class="flex gap-3 bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-lg">
                                 <input v-model="clientForm.body" type="text" placeholder="Update the client on project progress..."
-                                    class="flex-1 bg-slate-50 dark:bg-slate-900 px-5 py-3 rounded-2xl border border-slate-100 dark:border-slate-700 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+                                    class="flex-1 bg-slate-50 dark:bg-slate-900 px-5 py-3 rounded-2xl border border-slate-100 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                                 <button type="submit" :disabled="clientForm.processing || !clientForm.body"
                                     class="px-6 py-3 rounded-2xl bg-blue-900 dark:bg-blue-600 text-white font-bold text-xs hover:bg-black dark:hover:bg-blue-500 disabled:opacity-50 shadow-lg active:scale-95 transition-all">Publish</button>
                             </form>
@@ -496,6 +506,21 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                         </div>
                         <div class="h-3 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden mb-8 shadow-inner">
                             <div class="h-full bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.4)] transition-all duration-1000" :style="{ width: progress + '%' }"></div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mb-8">
+                            <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 text-center">
+                                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tasks</div>
+                                <div class="text-lg font-black text-slate-900 dark:text-white">
+                                    {{ project.todos?.filter(t => t.status === 'done').length || 0 }}/{{ project.todos?.length || 0 }}
+                                </div>
+                            </div>
+                            <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 text-center">
+                                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Timeline</div>
+                                <div class="text-lg font-black text-slate-900 dark:text-white">
+                                    {{ daysRemaining }} <span class="text-[10px] uppercase text-slate-400">Days</span>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="space-y-6">
@@ -525,6 +550,32 @@ const progress = computed(() => props.project.progress_percent ?? 0);
                                     <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Complexity Score</div>
                                     <div class="text-sm font-bold text-slate-900 dark:text-white">{{ project.complexity_score }}/10</div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Client Info Card -->
+                    <div v-if="project.client" class="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700/50 p-8 transition-colors">
+                        <div class="flex items-center gap-4 mb-6">
+                            <div class="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-inner">
+                                <BuildingOffice2Icon class="h-6 w-6" />
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white truncate">{{ project.client.company_name }}</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{{ project.client.sector }}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-4 pt-4 border-t border-slate-50 dark:border-slate-700">
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">TIN Number</span>
+                                <span class="text-xs font-bold text-slate-700 dark:text-slate-300">{{ project.client.tin_number }}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Status</span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" 
+                                    :class="project.client.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'">
+                                    {{ project.client.status }}
+                                </span>
                             </div>
                         </div>
                     </div>

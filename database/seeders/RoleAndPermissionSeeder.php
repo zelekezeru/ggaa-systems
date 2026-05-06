@@ -60,6 +60,18 @@ class RoleAndPermissionSeeder extends Seeder
             'view team projects',
             'lead team project',
             'participate team project',
+            // Financial ledger (client's own monthly P&L) permissions
+            'view ledger index',
+            'enter ledger data',
+            'submit ledger',
+            'verify ledger',
+            'view client ledger reports',
+            'download ledger reports',
+            // Service invoicing (firm's billing of clients) permissions
+            'view ledger progress',
+            'manage service invoices',
+            'view own invoices',
+            'view own payments',
         ];
 
         foreach ($permissions as $permission) {
@@ -80,6 +92,12 @@ class RoleAndPermissionSeeder extends Seeder
             'unassign-tasks',
             'manage team projects',
             'view team projects',
+            'view ledger index',
+            'enter ledger data',
+            'submit ledger',
+            'verify ledger',
+            'view client ledger reports',
+            'download ledger reports',
         ]);
 
         $teamLeader->syncPermissions([
@@ -99,6 +117,11 @@ class RoleAndPermissionSeeder extends Seeder
             'upload client documents',
             'view team projects',
             'participate team project',
+            'view ledger index',
+            'enter ledger data',
+            'submit ledger',
+            'view client ledger reports',
+            'download ledger reports',
         ]);
 
         $financeAdmin->syncPermissions([
@@ -109,6 +132,10 @@ class RoleAndPermissionSeeder extends Seeder
             'send-payment-reminders',
             'view team projects',
             'participate team project',
+            'view ledger progress',
+            'view client ledger reports',
+            'download ledger reports',
+            'manage service invoices',
         ]);
 
         $clientUser->syncPermissions([
@@ -116,6 +143,10 @@ class RoleAndPermissionSeeder extends Seeder
             'view own agreements',
             'download own reports',
             'send direct messages',
+            'view client ledger reports',
+            'download ledger reports',
+            'view own invoices',
+            'view own payments',
         ]);
     }
 }

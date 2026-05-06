@@ -366,13 +366,6 @@ const getStatusColor = (status) => {
                     </div>
 
                     <div class="sm:col-span-2">
-                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('email') }}</label>
-                        <input v-model="form.email" type="email" required placeholder="client@example.com" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
-                        <p v-if="form.errors.email" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.email }}</p>
-                        <p class="mt-1 text-[10px] text-slate-400">{{ $t('portal_login_desc') }}</p>
-                    </div>
-
-                    <div class="sm:col-span-2">
                         <SearchableMultiSelect
                             v-model="form.service_type_ids"
                             :options="serviceTypes"

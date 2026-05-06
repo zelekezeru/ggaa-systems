@@ -12,6 +12,9 @@ const user = computed(() => page.props.auth?.user);
 const notifications = computed(() => page.props.auth?.notifications ?? []);
 
 const mobileMenuOpen = ref(false);
+
+const userPermissions = computed(() => page.props.auth?.user?.permissions ?? []);
+const canViewLedger = computed(() => userPermissions.value.includes('view ledger index'));
 </script>
 
 <template>
@@ -97,7 +100,23 @@ const mobileMenuOpen = ref(false);
                             ]"
                         >
                             <span class="relative z-10">{{ $t('team_projects') }}</span>
-                            <div v-if="$page.url === '/employee/team-projects' || $page.url.startsWith('/employee/team-projects') || $page.url === '/team-projects'" 
+                            <div v-if="$page.url === '/employee/team-projects' || $page.url.startsWith('/employee/team-projects') || $page.url === '/team-projects'"
+                                 class="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_10px_rgba(79,70,229,0.5)]"></div>
+                        </Link>
+
+                        <!-- Financial Ledger -->
+                        <Link
+                            v-if="canViewLedger"
+                            :href="route('ledger.index')"
+                            class="relative px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 overflow-hidden group"
+                            :class="[
+                                $page.url.startsWith('/ledger')
+                                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-500/10 shadow-sm ring-1 ring-indigo-100 dark:ring-indigo-500/20'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                            ]"
+                        >
+                            <span class="relative z-10">Financial Ledger</span>
+                            <div v-if="$page.url.startsWith('/ledger')"
                                  class="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_10px_rgba(79,70,229,0.5)]"></div>
                         </Link>
                     </nav>

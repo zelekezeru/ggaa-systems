@@ -137,7 +137,7 @@ class TeamProjectController extends Controller
         $user = Auth::user();
 
         $teamProject->load([
-            'client', 'branch', 'teamLeader',
+            'client:id,company_name,tin_number,sector,logo_path,status', 'branch', 'teamLeader',
             'creator:id,name',
             'activeMembers.user:id,name,email,profile_photo_path',
             'todos.assignee:id,name',

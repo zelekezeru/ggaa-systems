@@ -21,6 +21,11 @@ use App\Http\Controllers\ServiceTypeController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\MonthlyLedgerController;
+use App\Http\Controllers\Finance\LedgerProgressController;
+use App\Http\Controllers\Finance\InvoiceController as FinanceInvoiceController;
+use App\Http\Controllers\Client\LedgerController as ClientLedgerController;
+use App\Http\Controllers\Client\InvoiceController as ClientInvoiceController;
 use App\Http\Controllers\TeamProject\TeamProjectController;
 use App\Http\Controllers\TeamProject\TeamProjectFileController;
 use App\Http\Controllers\TeamProject\TeamProjectMessageController;
@@ -121,6 +126,7 @@ Route::middleware(['auth', 'role:Super Admin|Branch Manager'])->group(function (
     Route::post('/super-admin/clients', [AdminClientController::class, 'store'])->name('admin.clients.store');
     Route::put('/super-admin/clients/{client}', [AdminClientController::class, 'update'])->name('admin.clients.update');
     Route::delete('/super-admin/clients/{client}', [AdminClientController::class, 'destroy'])->name('admin.clients.destroy');
+    Route::post('/super-admin/clients/{client}/reset-password', [AdminClientController::class, 'resetPassword'])->name('admin.clients.reset-password');
 
     // Service Type CRUD
     Route::get('/super-admin/service-types', [ServiceTypeController::class, 'index'])->name('super-admin.service-types');
@@ -226,11 +232,65 @@ Route::prefix('employee')->middleware(['auth', 'can:view team projects'])->group
     Route::post('/team-projects/{teamProject}/messages', [TeamProjectMessageController::class, 'store'])->name('employee.team-projects.messages.store');
 });
 
+// --- FINANCIAL LEDGER (permission-gated) ---
+Route::middleware(['auth'])->group(function () {
+    Route::get('/ledger', [MonthlyLedgerController::class, 'index'])
+        ->middleware('can:view ledger index')->name('ledger.index');
+    Route::get('/ledger/clients/{client}', [MonthlyLedgerController::class, 'show'])
+        ->middleware('can:enter ledger data')->name('ledger.show');
+    Route::post('/ledger/clients/{client}/entries', [MonthlyLedgerController::class, 'store'])
+        ->middleware('can:enter ledger data')->name('ledger.store');
+    Route::put('/ledger/entries/{ledger}', [MonthlyLedgerController::class, 'update'])
+        ->middleware('can:enter ledger data')->name('ledger.update');
+    Route::post('/ledger/entries/{ledger}/verify', [MonthlyLedgerController::class, 'verify'])
+        ->middleware('can:verify ledger')->name('ledger.verify');
+    Route::post('/ledger/clients/{client}/bank-accounts', [MonthlyLedgerController::class, 'storeBankAccount'])
+        ->middleware('can:enter ledger data')->name('ledger.bank-accounts.store');
+
+    // Downloads (verified ledger only — enforced in controller via the model scope for Clients)
+    Route::get('/ledger/entries/{ledger}/download/pdf', [MonthlyLedgerController::class, 'downloadPdf'])
+        ->middleware('can:download ledger reports')->name('ledger.download.pdf');
+    Route::get('/ledger/entries/{ledger}/download/xlsx', [MonthlyLedgerController::class, 'downloadXlsx'])
+        ->middleware('can:download ledger reports')->name('ledger.download.xlsx');
+});
+
+// --- CLIENT PORTAL: Financial Ledger + Invoices + Payments ---
+Route::prefix('portal')->middleware(['auth', 'role:Client'])->group(function () {
+    Route::get('/financial-ledger', [ClientLedgerController::class, 'index'])
+        ->middleware('can:view client ledger reports')->name('client.ledger.index');
+
+    Route::get('/invoices', [ClientInvoiceController::class, 'index'])
+        ->middleware('can:view own invoices')->name('client.invoices.index');
+    Route::get('/invoices/{invoice}/download', [ClientInvoiceController::class, 'downloadPdf'])
+        ->middleware('can:view own invoices')->name('client.invoices.download');
+
+    Route::get('/payments', [ClientInvoiceController::class, 'payments'])
+        ->middleware('can:view own payments')->name('client.payments.index');
+});
+
 // --- FINANCE ADMIN ---
 Route::middleware(['auth', 'role:Finance Admin'])->group(function () {
     Route::get('/finance/billing', [BillingController::class, 'index'])->name('finance.billing');
     Route::post('/finance/clients/{client}/reminders', [BillingController::class, 'sendReminder'])->name('finance.reminders.send');
     Route::post('/finance/clients/{client}/record-payment', [BillingController::class, 'recordPayment'])->name('finance.payments.record');
+
+    // Ledger progress (read-only across all clients)
+    Route::get('/finance/ledger-progress', [LedgerProgressController::class, 'index'])
+        ->middleware('can:view ledger progress')->name('finance.ledger-progress');
+
+    // Service invoicing (firm's billing of clients)
+    Route::middleware('can:manage service invoices')->group(function () {
+        Route::get('/finance/invoices',                       [FinanceInvoiceController::class, 'index'])->name('finance.invoices.index');
+        Route::get('/finance/invoices/create',                [FinanceInvoiceController::class, 'create'])->name('finance.invoices.create');
+        Route::get('/finance/invoices/services-rendered',     [FinanceInvoiceController::class, 'servicesRendered'])->name('finance.invoices.services-rendered');
+        Route::post('/finance/invoices',                      [FinanceInvoiceController::class, 'store'])->name('finance.invoices.store');
+        Route::get('/finance/invoices/{invoice}',             [FinanceInvoiceController::class, 'show'])->name('finance.invoices.show');
+        Route::post('/finance/invoices/{invoice}/send',       [FinanceInvoiceController::class, 'send'])->name('finance.invoices.send');
+        Route::post('/finance/invoices/{invoice}/cancel',     [FinanceInvoiceController::class, 'cancel'])->name('finance.invoices.cancel');
+        Route::post('/finance/invoices/{invoice}/payments',   [FinanceInvoiceController::class, 'recordPayment'])->name('finance.invoices.payments');
+        Route::get('/finance/invoices/{invoice}/download',    [FinanceInvoiceController::class, 'downloadPdf'])->name('finance.invoices.download');
+        Route::delete('/finance/invoices/{invoice}',          [FinanceInvoiceController::class, 'destroy'])->name('finance.invoices.destroy');
+    });
 });
 
 // --- EMPLOYEE PORTAL ---
