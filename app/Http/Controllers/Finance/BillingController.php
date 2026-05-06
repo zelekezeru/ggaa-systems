@@ -26,7 +26,7 @@ class BillingController extends Controller
             'last_reminder_sent_at'
         )->get();
 
-        $recentPayments = ServiceInvoicePayment::with(['invoice.client', 'recordedBy'])
+        $recentPayments = ServiceInvoicePayment::with(['invoice.client', 'recordedBy', 'approvedBy'])
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get();
@@ -54,6 +54,8 @@ class BillingController extends Controller
             'clientsBilling'  => $clients->values(),
             'recentPayments'  => $recentPayments,
             'pendingInvoices' => $pendingInvoices,
+            'canApprove'      => Auth::user()->can('approve payments'),
+            'canRecord'       => Auth::user()->can('record payments'),
         ]);
     }
 
@@ -83,6 +85,7 @@ class BillingController extends Controller
             'receipt_link'    => ['nullable', 'url', 'max:255'],
             'receipt_photo'   => ['nullable', 'image', 'max:2048'], // 2MB max
             'notes'           => ['nullable', 'string', 'max:500'],
+            'status'          => ['nullable', 'string', 'in:Draft,Pending Approval,Completed'],
         ]);
 
         // Handle file upload
@@ -91,14 +94,11 @@ class BillingController extends Controller
             $photoPath = $request->file('receipt_photo')->store('receipts', 'public');
         }
 
-        // Find or create an invoice for this month if one doesn't exist?
-        // For simplicity, let's assume we link to the latest unpaid invoice or just record the payment
         $invoice = ServiceInvoice::where('client_id', $client->id)
             ->where('status', '!=', 'paid')
             ->orderBy('created_at', 'desc')
             ->first();
 
-        // If no invoice found, create a generic one for the retainer?
         if (!$invoice) {
             $invoice = ServiceInvoice::create([
                 'client_id'      => $client->id,
@@ -112,6 +112,8 @@ class BillingController extends Controller
             ]);
         }
 
+        $paymentStatus = $validated['status'] ?? 'Completed';
+
         $payment = ServiceInvoicePayment::create([
             'service_invoice_id' => $invoice->id,
             'amount'             => $validated['amount'],
@@ -122,15 +124,37 @@ class BillingController extends Controller
             'paid_at'            => $validated['payment_date'],
             'recorded_by'        => Auth::id(),
             'notes'              => $validated['notes'],
-            'status'             => 'Completed',
+            'status'             => $paymentStatus,
+            'scheduled_at'       => $paymentStatus === 'Draft' ? now() : null,
         ]);
 
-        // Update client status
-        $client->update([
+        // Only update client status if payment is completed
+        if ($paymentStatus === 'Completed') {
+            $client->update([
+                'payment_status'    => 'Paid',
+                'last_payment_date' => $validated['payment_date'],
+            ]);
+        }
+
+        return back()->with('success', "Payment of ETB " . number_format($validated['amount'], 2) . " ($paymentStatus) recorded for {$client->company_name}.");
+    }
+
+    public function approvePayment(ServiceInvoicePayment $payment)
+    {
+        $this->authorize('approve payments'); // You might need to add this permission
+
+        $payment->update([
+            'status'      => 'Completed',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+        ]);
+
+        // Update client status when approved
+        $payment->invoice->client->update([
             'payment_status'    => 'Paid',
-            'last_payment_date' => $validated['payment_date'],
+            'last_payment_date' => $payment->paid_at,
         ]);
 
-        return back()->with('success', "Payment of ETB " . number_format($validated['amount'], 2) . " recorded for {$client->company_name}.");
+        return back()->with('success', "Payment of ETB " . number_format($payment->amount, 2) . " approved.");
     }
 }

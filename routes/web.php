@@ -276,6 +276,8 @@ Route::middleware(['auth', 'role:Finance Admin|Super Admin'])->group(function ()
         ->middleware('can:send payment reminders')->name('finance.reminders.send');
     Route::post('/finance/clients/{client}/record-payment', [BillingController::class, 'recordPayment'])
         ->middleware('can:record payments')->name('finance.payments.record');
+    Route::post('/finance/payments/{payment}/approve', [BillingController::class, 'approvePayment'])
+        ->middleware('can:approve payments')->name('finance.payments.approve');
 
     // Ledger progress (read-only across all clients)
     Route::get('/finance/ledger-progress', [LedgerProgressController::class, 'index'])

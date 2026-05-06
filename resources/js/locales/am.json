@@ -456,5 +456,19 @@
     "billing": "ክፍያ",
     "revenue": "ገቢ",
     "finance": "ፋይናንስ",
-    "ledger_progress": "የሌጀር ሂደት"
+    "ledger_progress": "የሌጀር ሂደት",
+    "billings": "ደንበኞች እና ክፍያዎች",
+    "payments_done": "የተጠናቀቁ ክፍያዎች",
+    "pending_payments": "ያልተከፈሉ ክፍያዎች",
+    "report": "የፋይናንስ ሪፖርት",
+    "cash": "ጥሬ ገንዘብ",
+    "bank_transfer": "የባንክ ዝውውር",
+    "mobile_money": "የሞባይል ገንዘብ",
+    "cheque": "ቼክ",
+    "card_payment": "የካርድ ክፍያ",
+    "payment_method": "የክፍያ ዘዴ",
+    "reference_number": "የማጣቀሻ ቁጥር",
+    "receipt_link": "የደረሰኝ ሊንክ",
+    "receipt_photo": "የደረሰኝ ፎቶ",
+    "confirm_payment": "ክፍያውን አረጋግጥ"
 }

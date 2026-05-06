@@ -38,7 +38,7 @@ class ServiceInvoice extends Model
 
     public function getPaidAmountAttribute(): float
     {
-        return (float) $this->payments()->sum('amount');
+        return (float) $this->payments()->where('status', 'Completed')->sum('amount');
     }
 
     public function getBalanceDueAttribute(): float

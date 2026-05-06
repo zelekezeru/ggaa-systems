@@ -10,7 +10,21 @@ class ServiceInvoicePayment extends Model
 
     protected $casts = [
         'paid_at' => 'date',
+        'approved_at' => 'datetime',
+        'scheduled_at' => 'datetime',
     ];
+
+    protected $appends = ['receipt_photo_url'];
+
+    public function getReceiptPhotoUrlAttribute()
+    {
+        return $this->receipt_photo_path ? asset('storage/' . $this->receipt_photo_path) : null;
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
 
     public function invoice()
     {

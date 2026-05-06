@@ -54,8 +54,8 @@ class Client extends Model
             if (Auth::check()) {
                 $user = Auth::user();
 
-                // 1. Super Admin: Highest privilege, sees everything
-                if ($user->hasRole('Super Admin')) {
+                // 1. Super Admin & Finance: Highest privilege, sees everything
+                if ($user->hasRole('Super Admin') || $user->hasRole('Finance Admin')) {
                     return;
                 }
 
