@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import AdminLayout from '@/Layouts/AdminLayout.vue';
+import { useRoleLayout } from '@/Composables/useRoleLayout';
 import { ArrowLeftIcon, RectangleGroupIcon, ClockIcon, UserGroupIcon } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -29,11 +29,12 @@ const filteredClients = computed(() =>
 );
 
 const submit = () => form.put(route('team-projects.update', props.project.id));
+const { currentLayout } = useRoleLayout();
 </script>
 
 <template>
     <Head :title="'Edit ' + project.title" />
-    <AdminLayout>
+    <component :is="currentLayout">
         <div class="p-8 max-w-5xl mx-auto">
             <div class="flex items-center gap-4 mb-8">
                 <Link :href="route('team-projects.show', project.id)" class="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 shadow-sm border border-slate-100 dark:border-slate-700/50 transition-all active:scale-95">
@@ -151,5 +152,5 @@ const submit = () => form.put(route('team-projects.update', props.project.id));
                 </div>
             </form>
         </div>
-    </AdminLayout>
+    </component>
 </template>

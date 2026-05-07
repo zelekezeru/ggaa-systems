@@ -72,7 +72,7 @@ Route::get('/dashboard', function () {
         return redirect()->route('client.dashboard');
     if ($user->hasRole('Finance Admin'))
         return redirect()->route('finance.billing');
-    return Inertia::render('SuperAdmin/Dashboard'); // Super Admin / Branch Manager fallback
+    return redirect()->route('super-admin.dashboard'); // Super Admin / Branch Manager fallback
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -263,6 +263,8 @@ Route::prefix('portal')->middleware(['auth', 'role:Client'])->group(function () 
         ->middleware('can:view own invoices')->name('client.invoices.index');
     Route::get('/invoices/{invoice}/download', [ClientInvoiceController::class, 'downloadPdf'])
         ->middleware('can:view own invoices')->name('client.invoices.download');
+    Route::post('/invoices/{invoice}/submit-payment', [ClientInvoiceController::class, 'submitPayment'])
+        ->middleware('can:submit invoice payment')->name('client.invoices.submit-payment');
 
     Route::get('/payments', [ClientInvoiceController::class, 'payments'])
         ->middleware('can:view own payments')->name('client.payments.index');
@@ -278,6 +280,12 @@ Route::middleware(['auth', 'role:Finance Admin|Super Admin'])->group(function ()
         ->middleware('can:record payments')->name('finance.payments.record');
     Route::post('/finance/payments/{payment}/approve', [BillingController::class, 'approvePayment'])
         ->middleware('can:approve payments')->name('finance.payments.approve');
+    Route::post('/finance/payments/{payment}/reject', [BillingController::class, 'rejectPayment'])
+        ->middleware('can:reject payments')->name('finance.payments.reject');
+    Route::post('/finance/payments/{payment}/submit-draft', [BillingController::class, 'submitDraftPayment'])
+        ->middleware('can:submit draft payments')->name('finance.payments.submit-draft');
+    Route::post('/finance/expected-payments/generate', [BillingController::class, 'generateExpectedPayments'])
+        ->middleware('can:generate expected payments')->name('finance.expected-payments.generate');
 
     // Ledger progress (read-only across all clients)
     Route::get('/finance/ledger-progress', [LedgerProgressController::class, 'index'])
@@ -287,12 +295,14 @@ Route::middleware(['auth', 'role:Finance Admin|Super Admin'])->group(function ()
     Route::middleware('can:manage service invoices')->group(function () {
         Route::get('/finance/invoices',                       [FinanceInvoiceController::class, 'index'])->name('finance.invoices.index');
         Route::get('/finance/invoices/create',                [FinanceInvoiceController::class, 'create'])->name('finance.invoices.create');
-        Route::get('/finance/invoices/services-rendered',     [FinanceInvoiceController::class, 'servicesRendered'])->name('finance.invoices.services-rendered');
+        Route::match(['get', 'post'], '/finance/invoices/services-rendered', [FinanceInvoiceController::class, 'servicesRendered'])->name('finance.invoices.services-rendered');
         Route::post('/finance/invoices',                      [FinanceInvoiceController::class, 'store'])->name('finance.invoices.store');
         Route::get('/finance/invoices/{invoice}',             [FinanceInvoiceController::class, 'show'])->name('finance.invoices.show');
         Route::post('/finance/invoices/{invoice}/send',       [FinanceInvoiceController::class, 'send'])->name('finance.invoices.send');
         Route::post('/finance/invoices/{invoice}/cancel',     [FinanceInvoiceController::class, 'cancel'])->name('finance.invoices.cancel');
         Route::post('/finance/invoices/{invoice}/payments',   [FinanceInvoiceController::class, 'recordPayment'])->name('finance.invoices.payments');
+        Route::post('/finance/invoice-payments/{payment}/approve', [FinanceInvoiceController::class, 'approvePayment'])->middleware('can:approve invoice payments')->name('finance.invoice-payments.approve');
+        Route::post('/finance/invoice-payments/{payment}/reject',  [FinanceInvoiceController::class, 'rejectPayment'])->middleware('can:reject invoice payments')->name('finance.invoice-payments.reject');
         Route::get('/finance/invoices/{invoice}/download',    [FinanceInvoiceController::class, 'downloadPdf'])->name('finance.invoices.download');
         Route::delete('/finance/invoices/{invoice}',          [FinanceInvoiceController::class, 'destroy'])->name('finance.invoices.destroy');
     });

@@ -42,7 +42,17 @@
         <h2 class="sales">I. Sales Income</h2>
         <table>
             <tr><td class="label">Cash Register Machine Sales</td><td class="amt">{{ $fmt($ledger->cash_machine_sales) }}</td></tr>
+            @if ($ledger->cash_machine_start_number !== null)
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Receipt # Start</td><td class="amt">{{ $ledger->cash_machine_start_number }}</td></tr>
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Receipt # End</td><td class="amt">{{ $ledger->cash_machine_end_number ?? '—' }}</td></tr>
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Receipt Count</td><td class="amt">{{ $ledger->cash_machine_sales_count }}</td></tr>
+            @endif
             <tr><td class="label">Manual (Hand-to-Hand) Sales</td><td class="amt">{{ $fmt($ledger->manual_sales) }}</td></tr>
+            @if ($ledger->manual_receipt_start_number !== null)
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Receipt # Start</td><td class="amt">{{ $ledger->manual_receipt_start_number }}</td></tr>
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Receipt # End</td><td class="amt">{{ $ledger->manual_receipt_end_number ?? '—' }}</td></tr>
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Receipt Count</td><td class="amt">{{ $ledger->manual_receipt_count }}</td></tr>
+            @endif
             <tr class="total"><td>Total Sales</td><td class="amt">{{ $fmt($ledger->total_sales) }}</td></tr>
         </table>
     </section>
@@ -54,8 +64,13 @@
             <tr><td class="label">B) Purchases</td><td class="amt">{{ $fmt($ledger->purchases) }}</td></tr>
             <tr><td class="label">C = A+B) Available for Sales</td><td class="amt">{{ $fmt($ledger->available_for_sales) }}</td></tr>
             <tr><td class="label">D) Ending Inventory</td><td class="amt">{{ $fmt($ledger->ending_inventory) }}</td></tr>
-            <tr><td class="label">E = C−D) Cost of Goods Sold</td><td class="amt">{{ $fmt($ledger->cost_of_goods_sold) }}</td></tr>
-            <tr class="total"><td>F = Sales − COGS) Gross Profit</td><td class="amt">{{ $fmt($ledger->gross_profit) }}</td></tr>
+            @if ($ledger->inventory_items_start !== null)
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Units at Start</td><td class="amt">{{ $ledger->inventory_items_start }}</td></tr>
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Units at End</td><td class="amt">{{ $ledger->inventory_items_end ?? '—' }}</td></tr>
+            <tr><td class="label" style="padding-left:20px;color:#6b7280">&#8627; Units Sold</td><td class="amt">{{ $ledger->inventory_sold_quantity ?? '—' }}</td></tr>
+            @endif
+            <tr><td class="label">E = C&minus;D) Cost of Goods Sold</td><td class="amt">{{ $fmt($ledger->cost_of_goods_sold) }}</td></tr>
+            <tr class="total"><td>F = Sales &minus; COGS) Gross Profit</td><td class="amt">{{ $fmt($ledger->gross_profit) }}</td></tr>
         </table>
     </section>
 

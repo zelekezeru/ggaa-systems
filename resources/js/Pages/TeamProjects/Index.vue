@@ -1,9 +1,7 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import AdminLayout from '@/Layouts/AdminLayout.vue';
-import ClientLayout from '@/Layouts/ClientLayout.vue';
-import EmployeeLayout from '@/Layouts/EmployeeLayout.vue';
+import { useRoleLayout } from '@/Composables/useRoleLayout';
 import { RectangleGroupIcon, PlusIcon, MagnifyingGlassIcon, UserGroupIcon, CalendarIcon, ClockIcon, PencilSquareIcon } from '@heroicons/vue/24/outline';
 const debounce = (fn, wait) => {
     let timer;
@@ -48,13 +46,7 @@ const priorityBadge = (p) => ({
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : '—';
 
-const page = usePage();
-const currentLayout = computed(() => {
-    const roles = page.props.auth.user.roles || [];
-    if (roles.includes('Client')) return ClientLayout;
-    if (roles.includes('Employee')) return EmployeeLayout;
-    return AdminLayout;
-});
+const { currentLayout } = useRoleLayout();
 </script>
 
 <template>

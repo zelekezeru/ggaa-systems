@@ -1,15 +1,12 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
-import AdminLayout from '@/Layouts/AdminLayout.vue';
-import ClientLayout from '@/Layouts/ClientLayout.vue';
-import EmployeeLayout from '@/Layouts/EmployeeLayout.vue';
-import FinanceLayout from '@/Layouts/FinanceLayout.vue';
+import { useRoleLayout } from '@/Composables/useRoleLayout';
 import {
     ArrowLeftIcon, RectangleGroupIcon, UserGroupIcon, ClipboardDocumentListIcon,
     PaperClipIcon, ChatBubbleLeftRightIcon, BuildingOffice2Icon,
     PlusIcon, TrashIcon, ArrowUpTrayIcon, CheckIcon, ArrowPathIcon,
-    PencilSquareIcon, ClockIcon, CalendarIcon, ArrowDownTrayIcon
+    PencilSquareIcon, ClockIcon, CalendarIcon, ArrowDownTrayIcon, BookOpenIcon
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -19,6 +16,7 @@ const props = defineProps({
     isClient: Boolean,
     canManage: Boolean,
     staffOptions: Array,
+    ledgers: { type: Array, default: () => [] },
 });
 
 const tabs = [
@@ -26,6 +24,7 @@ const tabs = [
     { key: 'plan',          label: 'Plan & Todos',   icon: ClipboardDocumentListIcon },
     { key: 'team',          label: 'Team',           icon: UserGroupIcon },
     { key: 'files',         label: 'Files',          icon: PaperClipIcon },
+    { key: 'ledger',        label: 'Financial Ledger', icon: BookOpenIcon, hidden: () => !props.project.client_id || props.ledgers.length === 0 },
     { key: 'team_chat',     label: 'Team Chat',      icon: ChatBubbleLeftRightIcon },
     { key: 'client_thread', label: 'Client Thread',  icon: BuildingOffice2Icon, hidden: () => !props.project.client_id },
 ];
@@ -44,14 +43,7 @@ const filteredTabs = computed(() => {
 
 const activeTab = ref('overview');
 
-const page = usePage();
-const currentLayout = computed(() => {
-    const roles = page.props.auth.user.roles || [];
-    if (roles.includes('Client')) return ClientLayout;
-    if (roles.includes('Employee')) return EmployeeLayout;
-    if (roles.includes('Finance Admin')) return FinanceLayout;
-    return AdminLayout;
-});
+const { currentLayout } = useRoleLayout();
 
 const statusBadge = (s) => ({
     planning:    'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
@@ -412,6 +404,67 @@ const daysRemaining = computed(() => {
                             <div v-else class="text-center py-20 bg-slate-50 dark:bg-slate-900/10 rounded-3xl">
                                 <PaperClipIcon class="h-12 w-12 text-slate-200 dark:text-slate-800 mx-auto mb-4" />
                                 <p class="text-slate-400 dark:text-slate-600 font-medium">No artifacts or files attached yet.</p>
+                            </div>
+                        </div>
+
+                        <!-- ── Financial Ledger ── -->
+                        <div v-if="activeTab === 'ledger'" class="p-8 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <BookOpenIcon class="h-5 w-5" />
+                                    Financial Ledger Entries
+                                </h3>
+                                <Link v-if="project.client_id" :href="route('ledger.show', project.client_id)"
+                                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400">
+                                    <PencilSquareIcon class="h-3.5 w-3.5" /> Open Ledger
+                                </Link>
+                            </div>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">
+                                Monthly P&amp;L entries for this client. Team members assigned to this project can collaborate on ledger entry.
+                            </p>
+
+                            <div v-if="ledgers.length === 0" class="text-center py-12 text-slate-400">
+                                No ledger entries yet for this client.
+                            </div>
+
+                            <div v-else class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                        <tr>
+                                            <th class="text-left px-4 py-3 text-xs font-semibold uppercase">Period</th>
+                                            <th class="text-left px-4 py-3 text-xs font-semibold uppercase">Status</th>
+                                            <th class="text-right px-4 py-3 text-xs font-semibold uppercase">Net Profit</th>
+                                            <th class="text-left px-4 py-3 text-xs font-semibold uppercase">Submitted By</th>
+                                            <th class="text-left px-4 py-3 text-xs font-semibold uppercase">Verified By</th>
+                                            <th class="text-right px-4 py-3 text-xs font-semibold uppercase">Download</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                        <tr v-for="l in ledgers" :key="l.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                            <td class="px-4 py-3 font-bold">{{ l.eth_month }} {{ l.eth_year }}</td>
+                                            <td class="px-4 py-3">
+                                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold capitalize"
+                                                    :class="{
+                                                        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400': l.status === 'verified',
+                                                        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': l.status === 'submitted',
+                                                        'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400': l.status === 'draft',
+                                                    }">{{ l.status }}</span>
+                                            </td>
+                                            <td class="px-4 py-3 text-right tabular-nums" :class="l.net_profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'">
+                                                {{ new Intl.NumberFormat('en-ET', { minimumFractionDigits: 2 }).format(l.net_profit) }}
+                                            </td>
+                                            <td class="px-4 py-3 text-xs text-slate-500">{{ l.submitted_by || '—' }}</td>
+                                            <td class="px-4 py-3 text-xs text-slate-500">{{ l.verified_by || '—' }}</td>
+                                            <td class="px-4 py-3 text-right">
+                                                <a v-if="l.status === 'verified'" :href="route('ledger.download.pdf', l.id)" target="_blank"
+                                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100">
+                                                    <ArrowDownTrayIcon class="h-3 w-3" /> PDF
+                                                </a>
+                                                <span v-else class="text-xs text-slate-300">—</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 

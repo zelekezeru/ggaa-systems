@@ -49,14 +49,71 @@ class BillingController extends Controller
             'pending_count'   => $pendingInvoices->count(),
         ];
 
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+        
         return Inertia::render('Finance/Billing', [
             'kpis'            => $kpis,
             'clientsBilling'  => $clients->values(),
             'recentPayments'  => $recentPayments,
             'pendingInvoices' => $pendingInvoices,
-            'canApprove'      => Auth::user()->can('approve payments'),
-            'canRecord'       => Auth::user()->can('record payments'),
+            'canApprove'      => $user && $user->hasAnyRole(['Super Admin', 'Finance Admin']),
+            'canRecord'       => $user && $user->hasAnyRole(['Super Admin', 'Finance Admin', 'Branch Manager', 'Employee']),
+            'draftPayments'   => ServiceInvoicePayment::with(['invoice.client', 'recordedBy'])
+                                    ->where('status', 'Draft')
+                                    ->get(),
         ]);
+    }
+
+    public function generateExpectedPayments(Request $request)
+    {
+        $request->validate([
+            'month' => 'required|integer|between:1,12',
+            'year'  => 'required|integer|min:2020',
+        ]);
+
+        $clients = Client::where('retainer_fee', '>', 0)->get();
+        $count = 0;
+
+        foreach ($clients as $client) {
+            // Check if already has a draft or payment for this month/year range
+            // For simplicity, we check if an invoice for this month exists or create one
+            $start = Carbon::create($request->year, $request->month, 1)->startOfMonth();
+            $end = $start->copy()->endOfMonth();
+
+            $invoice = ServiceInvoice::where('client_id', $client->id)
+                ->where('period_start', $start)
+                ->first();
+
+            if (!$invoice) {
+                $invoice = ServiceInvoice::create([
+                    'client_id'      => $client->id,
+                    'invoice_number' => ServiceInvoice::generateInvoiceNumber(),
+                    'amount'         => $client->retainer_fee,
+                    'status'         => 'draft',
+                    'period_start'   => $start,
+                    'period_end'     => $end,
+                    'due_date'       => $end->copy()->addDays(5),
+                    'created_by'     => Auth::id(),
+                ]);
+            }
+
+            // Create Draft payment if none exists for this invoice
+            if (!$invoice->payments()->where('status', 'Draft')->exists() && !$invoice->payments()->where('status', 'Completed')->exists()) {
+                ServiceInvoicePayment::create([
+                    'service_invoice_id' => $invoice->id,
+                    'amount'             => $client->retainer_fee,
+                    'payment_method'     => 'bank_transfer',
+                    'status'             => 'Draft',
+                    'recorded_by'        => Auth::id(),
+                    'scheduled_at'       => now(),
+                    'notes'              => "Auto-generated expected payment for {$start->format('F Y')}",
+                ]);
+                $count++;
+            }
+        }
+
+        return back()->with('success', "Generated {$count} expected draft payments for " . $start->format('F Y'));
     }
 
     public function sendReminder(Request $request, Client $client)
@@ -141,7 +198,7 @@ class BillingController extends Controller
 
     public function approvePayment(ServiceInvoicePayment $payment)
     {
-        $this->authorize('approve payments'); // You might need to add this permission
+        // $this->authorize('approve payments'); // Handled by role check usually
 
         $payment->update([
             'status'      => 'Completed',
@@ -149,12 +206,62 @@ class BillingController extends Controller
             'approved_at' => now(),
         ]);
 
-        // Update client status when approved
-        $payment->invoice->client->update([
-            'payment_status'    => 'Paid',
-            'last_payment_date' => $payment->paid_at,
-        ]);
+        // Recompute invoice status
+        $payment->invoice->recomputeStatus();
+
+        // Update client status if invoice is fully paid
+        if ($payment->invoice->status === 'paid') {
+            $payment->invoice->client->update([
+                'payment_status'    => 'Paid',
+                'last_payment_date' => $payment->paid_at ?? now(),
+            ]);
+        }
 
         return back()->with('success', "Payment of ETB " . number_format($payment->amount, 2) . " approved.");
+    }
+
+    public function submitDraftPayment(Request $request, ServiceInvoicePayment $payment)
+    {
+        $validated = $request->validate([
+            'amount'          => ['required', 'numeric', 'min:0'],
+            'payment_method'  => ['required', 'string'],
+            'paid_at'         => ['required', 'date', 'before_or_equal:today'],
+            'reference'       => ['nullable', 'string', 'max:100'],
+            'receipt_link'    => ['nullable', 'url', 'max:255'],
+            'receipt_photo'   => ['nullable', 'image', 'max:2048'],
+            'notes'           => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $photoPath = $payment->receipt_photo_path;
+        if ($request->hasFile('receipt_photo')) {
+            $photoPath = $request->file('receipt_photo')->store('receipts', 'public');
+        }
+
+        $payment->update([
+            'amount'             => $validated['amount'],
+            'payment_method'     => $validated['payment_method'],
+            'reference'          => $validated['reference'],
+            'receipt_link'       => $validated['receipt_link'],
+            'receipt_photo_path' => $photoPath,
+            'paid_at'            => $validated['paid_at'],
+            'notes'              => $validated['notes'],
+            'status'             => 'Pending Approval',
+        ]);
+
+        return back()->with('success', "Draft payment submitted for approval.");
+    }
+
+    public function rejectPayment(Request $request, ServiceInvoicePayment $payment)
+    {
+        $request->validate(['reason' => 'required|string|max:500']);
+
+        $payment->update([
+            'status'      => 'Rejected',
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'notes'       => ($payment->notes ? $payment->notes . "\n\n" : "") . "Rejected: " . $request->reason,
+        ]);
+
+        return back()->with('success', "Payment rejected.");
     }
 }

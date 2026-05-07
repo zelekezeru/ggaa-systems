@@ -10,7 +10,8 @@ import {
     BookOpenIcon, ChevronLeftIcon, CheckBadgeIcon,
     BanknotesIcon, ShoppingCartIcon, WrenchScrewdriverIcon,
     BuildingLibraryIcon, ReceiptPercentIcon, PlusIcon,
-    LockClosedIcon, LockOpenIcon, ArrowPathIcon
+    LockClosedIcon, LockOpenIcon, ArrowPathIcon,
+    TicketIcon, CubeIcon
 } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
@@ -46,17 +47,31 @@ const ledgerKey = computed(() => selectedYear.value + '_' + selectedMonth.value)
 const existing  = computed(() => props.ledgers[ledgerKey.value] ?? null);
 
 // ── Form ──
+// Fields that stay null when not entered (not defaulted to 0)
+const nullableFields = [
+    'cash_machine_start_number', 'cash_machine_end_number',
+    'manual_receipt_start_number', 'manual_receipt_end_number',
+    'inventory_items_start', 'inventory_items_end', 'inventory_sold_quantity',
+];
+
 const emptyForm = () => ({
     eth_year:  selectedYear.value,
     eth_month: selectedMonth.value,
     status:    'draft',
 
-    cash_machine_sales: 0,
-    manual_sales:       0,
+    cash_machine_sales:          0,
+    cash_machine_start_number:   null,
+    cash_machine_end_number:     null,
+    manual_sales:                0,
+    manual_receipt_start_number: null,
+    manual_receipt_end_number:   null,
 
-    beginning_inventory: 0,
-    purchases:           0,
-    ending_inventory:    0,
+    beginning_inventory:     0,
+    purchases:               0,
+    ending_inventory:        0,
+    inventory_items_start:   null,
+    inventory_items_end:     null,
+    inventory_sold_quantity: null,
 
     salary_expense:             0,
     pension_expense:            0,
@@ -93,9 +108,10 @@ function loadEntry() {
     if (e) {
         Object.keys(form.data()).forEach(k => {
             if (k in e) {
-                // If it's a numeric field (not eth_month, status, notes, bank_balances), default to 0
                 if (['eth_year', 'eth_month', 'status', 'notes', 'bank_balances'].includes(k)) {
                     form[k] = e[k] ?? (k === 'notes' ? '' : e[k]);
+                } else if (nullableFields.includes(k)) {
+                    form[k] = e[k] ?? null;
                 } else {
                     form[k] = e[k] ?? 0;
                 }
@@ -118,23 +134,36 @@ function loadEntry() {
         reset.eth_year  = selectedYear.value;
         reset.eth_month = selectedMonth.value;
         Object.assign(form, reset);
-        
+
         // Initialize bank balances for all accounts to 0
         const balMap = {};
         props.bankAccounts.forEach(acc => {
             balMap[acc.id] = {
-                balance: 0,
-                loan_amount: 0,
-                lc_margin_release: 0,
-                transfer_in: 0,
-                transfer_reversal: 0,
+                balance: 0, loan_amount: 0,
+                lc_margin_release: 0, transfer_in: 0, transfer_reversal: 0,
             };
         });
         form.bank_balances = balMap;
+
+        // Auto-populate start numbers from previous verified month's end + 1
+        const monthIdx = props.ethiopianMonths.indexOf(selectedMonth.value);
+        let prevYear = selectedYear.value;
+        let prevMonthIdx = monthIdx - 1;
+        if (prevMonthIdx < 0) { prevMonthIdx = props.ethiopianMonths.length - 1; prevYear--; }
+        const prevEntry = props.ledgers[prevYear + '_' + props.ethiopianMonths[prevMonthIdx]];
+        if (prevEntry?.status === 'verified') {
+            if (prevEntry.cash_machine_end_number != null)
+                form.cash_machine_start_number = parseInt(prevEntry.cash_machine_end_number) + 1;
+            if (prevEntry.manual_receipt_end_number != null)
+                form.manual_receipt_start_number = parseInt(prevEntry.manual_receipt_end_number) + 1;
+        }
     }
 }
 
-watch([selectedYear, selectedMonth], loadEntry, { immediate: true });
+watch([selectedYear, selectedMonth], () => {
+    form.clearErrors();
+    loadEntry();
+}, { immediate: true });
 
 // ── Real-time Computed Totals ──
 const n = (v) => parseFloat(v) || 0;
@@ -170,6 +199,20 @@ const totalBankBalance = computed(() => {
     return Object.values(form.bank_balances).reduce((sum, b) => sum + n(b?.balance), 0);
 });
 
+const cashMachineSalesCount = computed(() => {
+    const s = parseInt(form.cash_machine_start_number);
+    const e = parseInt(form.cash_machine_end_number);
+    if (isNaN(s) || isNaN(e) || e < s) return 0;
+    return e - s;
+});
+
+const manualReceiptCount = computed(() => {
+    const s = parseInt(form.manual_receipt_start_number);
+    const e = parseInt(form.manual_receipt_end_number);
+    if (isNaN(s) || isNaN(e) || e < s) return 0;
+    return e - s;
+});
+
 function validate() {
     form.clearErrors();
     let hasError = false;
@@ -179,7 +222,7 @@ function validate() {
         hasError = true;
     };
 
-    // 1. Check for negative values
+    // 1. Check for negative values on monetary fields
     const numericFields = [
         'cash_machine_sales', 'manual_sales',
         'beginning_inventory', 'purchases', 'ending_inventory',
@@ -191,14 +234,29 @@ function validate() {
         'legal_fee_expense', 'bank_interest_expense', 'bank_service_charge',
         'sales_vat', 'purchase_vat', 'withholding_tax'
     ];
-
     numericFields.forEach(field => {
-        if (form[field] !== '' && n(form[field]) < 0) {
-            setError(field, 'Value cannot be negative');
-        }
+        if (form[field] !== '' && n(form[field]) < 0) setError(field, 'Value cannot be negative');
     });
 
-    // 2. If submitting, ensure at least some income or expense is recorded
+    // 2. Document number range validation
+    const cmStart = parseInt(form.cash_machine_start_number);
+    const cmEnd   = parseInt(form.cash_machine_end_number);
+    if (!isNaN(cmStart) && !isNaN(cmEnd) && cmEnd < cmStart)
+        setError('cash_machine_end_number', 'End # must be ≥ Start #');
+
+    const mrStart = parseInt(form.manual_receipt_start_number);
+    const mrEnd   = parseInt(form.manual_receipt_end_number);
+    if (!isNaN(mrStart) && !isNaN(mrEnd) && mrEnd < mrStart)
+        setError('manual_receipt_end_number', 'End # must be ≥ Start #');
+
+    // 3. Inventory units sold cannot exceed available
+    if (form.inventory_sold_quantity !== null && form.inventory_sold_quantity !== '') {
+        const available = n(form.inventory_items_start) + n(form.purchases);
+        if (n(form.inventory_sold_quantity) > available)
+            setError('inventory_sold_quantity', 'Sold qty cannot exceed starting units + purchases');
+    }
+
+    // 4. If submitting, ensure at least some income or expense is recorded
     if (form.status === 'submitted') {
         if (totalSales.value === 0 && totalExpenses.value === 0) {
             toast.error('Cannot submit an empty ledger. Please enter sales or expenses.');
@@ -216,7 +274,11 @@ function save(submitStatus) {
     form.eth_month = selectedMonth.value;
 
     if (!validate()) {
-        toast.error('Please fix the errors before proceeding.');
+        // validate() fires its own toast for the empty-ledger case;
+        // only show the generic one when there are actual field errors.
+        if (Object.keys(form.errors).length > 0) {
+            toast.error(t('fix_errors_msg'));
+        }
         return;
     }
 
@@ -376,6 +438,71 @@ const statusBadge = computed(() => {
                                 <p v-if="form.errors.manual_sales" class="mt-1 text-xs text-red-500">{{ form.errors.manual_sales }}</p>
                             </div>
                         </div>
+
+                        <!-- Document Numbers Sub-section -->
+                        <div class="mx-5 mb-4 rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 overflow-hidden">
+                            <div class="flex items-center gap-1.5 px-4 py-2 border-b border-blue-100 dark:border-blue-900/40">
+                                <TicketIcon class="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                                <span class="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wide">{{ t('document_numbers') }}</span>
+                            </div>
+                            <div class="p-4 space-y-4">
+                                <!-- Cash Machine -->
+                                <div>
+                                    <p class="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2">{{ t('cash_machine_receipts') }}</p>
+                                    <div class="grid grid-cols-3 gap-3 items-end">
+                                        <div>
+                                            <label class="block text-xs text-gray-500 dark:text-slate-500 mb-1">{{ t('receipt_start_number') }}</label>
+                                            <input v-model.number="form.cash_machine_start_number" type="number" min="0" step="1" placeholder="e.g. 10001"
+                                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                :class="{'border-red-500': form.errors.cash_machine_start_number, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                                :readonly="isLocked" />
+                                            <p v-if="form.errors.cash_machine_start_number" class="mt-1 text-xs text-red-500">{{ form.errors.cash_machine_start_number }}</p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-gray-500 dark:text-slate-500 mb-1">{{ t('receipt_end_number') }}</label>
+                                            <input v-model.number="form.cash_machine_end_number" type="number" min="0" step="1" placeholder="e.g. 10250"
+                                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                :class="{'border-red-500': form.errors.cash_machine_end_number, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                                :readonly="isLocked" />
+                                            <p v-if="form.errors.cash_machine_end_number" class="mt-1 text-xs text-red-500">{{ form.errors.cash_machine_end_number }}</p>
+                                        </div>
+                                        <div class="text-center pb-1">
+                                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-0.5">{{ t('receipt_count') }}</p>
+                                            <span class="text-2xl font-black text-blue-600 dark:text-blue-400">{{ cashMachineSalesCount.toLocaleString() }}</span>
+                                            <p class="text-[10px] text-gray-400">{{ t('receipts') }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Manual Receipts -->
+                                <div>
+                                    <p class="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2">{{ t('manual_receipts') }}</p>
+                                    <div class="grid grid-cols-3 gap-3 items-end">
+                                        <div>
+                                            <label class="block text-xs text-gray-500 dark:text-slate-500 mb-1">{{ t('receipt_start_number') }}</label>
+                                            <input v-model.number="form.manual_receipt_start_number" type="number" min="0" step="1" placeholder="e.g. 5001"
+                                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                :class="{'border-red-500': form.errors.manual_receipt_start_number, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                                :readonly="isLocked" />
+                                            <p v-if="form.errors.manual_receipt_start_number" class="mt-1 text-xs text-red-500">{{ form.errors.manual_receipt_start_number }}</p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs text-gray-500 dark:text-slate-500 mb-1">{{ t('receipt_end_number') }}</label>
+                                            <input v-model.number="form.manual_receipt_end_number" type="number" min="0" step="1" placeholder="e.g. 5120"
+                                                class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                :class="{'border-red-500': form.errors.manual_receipt_end_number, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                                :readonly="isLocked" />
+                                            <p v-if="form.errors.manual_receipt_end_number" class="mt-1 text-xs text-red-500">{{ form.errors.manual_receipt_end_number }}</p>
+                                        </div>
+                                        <div class="text-center pb-1">
+                                            <p class="text-xs text-gray-500 dark:text-slate-400 mb-0.5">{{ t('receipt_count') }}</p>
+                                            <span class="text-2xl font-black text-blue-600 dark:text-blue-400">{{ manualReceiptCount.toLocaleString() }}</span>
+                                            <p class="text-[10px] text-gray-400">{{ t('receipts') }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="px-5 pb-3 flex justify-between items-center">
                             <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('total_sales') }}</span>
                             <span class="text-sm font-bold text-slate-900 dark:text-white">{{ fmt(totalSales) }} ETB</span>
@@ -414,6 +541,41 @@ const statusBadge = computed(() => {
                                 <p v-if="form.errors.ending_inventory" class="mt-1 text-xs text-red-500">{{ form.errors.ending_inventory }}</p>
                             </div>
                         </div>
+
+                        <!-- Inventory Units Sub-section -->
+                        <div class="mx-5 mb-4 rounded-lg border border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10 overflow-hidden">
+                            <div class="flex items-center gap-1.5 px-4 py-2 border-b border-orange-100 dark:border-orange-900/40">
+                                <CubeIcon class="h-3.5 w-3.5 text-orange-500 dark:text-orange-400" />
+                                <span class="text-xs font-semibold text-orange-700 dark:text-orange-400 uppercase tracking-wide">{{ t('inventory_units') }}</span>
+                            </div>
+                            <div class="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{{ t('inventory_units_start') }}</label>
+                                    <input v-model.number="form.inventory_items_start" type="number" min="0" step="0.001" placeholder="0"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                        :class="{'border-red-500': form.errors.inventory_items_start, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                        :readonly="isLocked" />
+                                    <p v-if="form.errors.inventory_items_start" class="mt-1 text-xs text-red-500">{{ form.errors.inventory_items_start }}</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{{ t('inventory_units_end') }}</label>
+                                    <input v-model.number="form.inventory_items_end" type="number" min="0" step="0.001" placeholder="0"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                        :class="{'border-red-500': form.errors.inventory_items_end, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                        :readonly="isLocked" />
+                                    <p v-if="form.errors.inventory_items_end" class="mt-1 text-xs text-red-500">{{ form.errors.inventory_items_end }}</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{{ t('inventory_units_sold') }}</label>
+                                    <input v-model.number="form.inventory_sold_quantity" type="number" min="0" step="0.001" placeholder="0"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                        :class="{'border-red-500': form.errors.inventory_sold_quantity, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                        :readonly="isLocked" />
+                                    <p v-if="form.errors.inventory_sold_quantity" class="mt-1 text-xs text-red-500">{{ form.errors.inventory_sold_quantity }}</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="px-5 pb-4 space-y-1.5 border-t border-gray-100 dark:border-slate-700 pt-3">
                             <div class="flex justify-between text-xs text-gray-500 dark:text-slate-400">
                                 <span>{{ t('available_for_sales') }}</span>
@@ -629,6 +791,36 @@ const statusBadge = computed(() => {
                                 <span class="text-sm font-semibold" :class="Math.abs(totalSales - totalBankBalance) > 1 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
                                     {{ fmt(totalSales - totalBankBalance) }}
                                 </span>
+                            </div>
+
+                            <!-- Receipt Counts -->
+                            <div v-if="cashMachineSalesCount > 0 || manualReceiptCount > 0" class="border-t border-gray-100 dark:border-slate-700 pt-3 space-y-1.5">
+                                <p class="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-1">{{ t('receipt_counts') }}</p>
+                                <div v-if="cashMachineSalesCount > 0" class="flex justify-between items-center">
+                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('cash_machine_count_label') }}</span>
+                                    <span class="text-xs font-semibold text-blue-600 dark:text-blue-400">{{ cashMachineSalesCount.toLocaleString() }} {{ t('receipts') }}</span>
+                                </div>
+                                <div v-if="manualReceiptCount > 0" class="flex justify-between items-center">
+                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('manual_receipt_count_label') }}</span>
+                                    <span class="text-xs font-semibold text-blue-600 dark:text-blue-400">{{ manualReceiptCount.toLocaleString() }} {{ t('receipts') }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Inventory Units -->
+                            <div v-if="form.inventory_items_start != null || form.inventory_sold_quantity != null" class="border-t border-gray-100 dark:border-slate-700 pt-3 space-y-1.5">
+                                <p class="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-1">{{ t('inventory_summary') }}</p>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('units_start') }}</span>
+                                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">{{ form.inventory_items_start ?? '—' }}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('units_end') }}</span>
+                                    <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">{{ form.inventory_items_end ?? '—' }}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('units_sold') }}</span>
+                                    <span class="text-xs font-semibold text-orange-600 dark:text-orange-400">{{ form.inventory_sold_quantity ?? '—' }}</span>
+                                </div>
                             </div>
                         </div>
 

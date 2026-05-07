@@ -2,219 +2,376 @@
 import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { 
-    ChartBarIcon, 
-    UsersIcon, 
-    BuildingOfficeIcon, 
-    ArrowTrendingUpIcon,
-    CheckBadgeIcon,
-    ExclamationTriangleIcon,
-    BriefcaseIcon,
-    UserGroupIcon
+import { useI18n } from 'vue-i18n';
+import {
+    UsersIcon, BuildingOfficeIcon, CheckCircleIcon,
+    ExclamationTriangleIcon, ClockIcon, DocumentTextIcon,
+    BanknotesIcon, ChartBarIcon, BriefcaseIcon,
+    FolderOpenIcon, ArrowRightIcon,
 } from '@heroicons/vue/24/outline';
 
+const { t } = useI18n();
+
 const props = defineProps({
-    branches: Array, // Array of branch objects with compliance stats
-    employees: Array, // Array of employee objects with weighted capacity scores
+    kpis:           Object,
+    branches:       Array,
+    employees:      Array,
+    taskBreakdown:  Array,
+    urgentTasks:    Array,
+    pendingLedgers: Array,
 });
 
-// Aggregate stats for the header
-const globalStats = computed(() => {
-    const totalBranches = props.branches.length;
-    const avgCompliance = totalBranches > 0 
-        ? Math.round(props.branches.reduce((acc, b) => acc + (b.compliance_rate || 0), 0) / totalBranches) 
-        : 0;
-    const totalStaff = props.employees.length;
-    const totalClients = props.employees.reduce((acc, e) => acc + (e.clients_count || 0), 0);
-
-    return [
-        { name: 'Total Branches', value: totalBranches, icon: BuildingOfficeIcon, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
-        { name: 'Global Compliance', value: `${avgCompliance}%`, icon: CheckBadgeIcon, color: 'text-emerald-600', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
-        { name: 'Total Workforce', value: totalStaff, icon: UserGroupIcon, color: 'text-indigo-600', bg: 'bg-indigo-100 dark:bg-indigo-900/30' },
-        { name: 'Active Clients', value: totalClients, icon: BriefcaseIcon, color: 'text-orange-600', bg: 'bg-orange-100 dark:bg-orange-900/30' },
-    ];
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const taskCompletionRate = computed(() => {
+    if (!props.kpis.tasks_total) return 0;
+    return Math.round((props.kpis.tasks_done / props.kpis.tasks_total) * 100);
 });
 
-const getCapacityColor = (percentage) => {
-    if (percentage >= 90) return 'bg-rose-500 shadow-rose-500/50';
-    if (percentage >= 75) return 'bg-amber-500 shadow-amber-500/50';
-    return 'bg-indigo-500 shadow-indigo-500/50';
+const fmtEtb = (v) => new Intl.NumberFormat('en-ET', {
+    style: 'currency', currency: 'ETB', minimumFractionDigits: 0, maximumFractionDigits: 0,
+}).format(v ?? 0);
+
+const getCapacityColor = (pts) => {
+    const pct = (pts / 30) * 100;
+    if (pct >= 95) return { bar: 'bg-rose-500',   badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
+    if (pct >= 80) return { bar: 'bg-amber-400',  badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
+    return           { bar: 'bg-emerald-500',      badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' };
 };
 
-const getComplianceStatus = (rate) => {
-    if (rate >= 90) return { label: 'Optimal', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' };
-    if (rate >= 70) return { label: 'Stable', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' };
-    return { label: 'Attention', color: 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' };
+const getComplianceColor = (rate) => {
+    if (rate >= 85) return 'text-emerald-600 dark:text-emerald-400';
+    if (rate >= 60) return 'text-amber-600 dark:text-amber-400';
+    return 'text-rose-600 dark:text-rose-400';
 };
+
+const getBranchBarColor = (rate) => {
+    if (rate >= 85) return 'bg-emerald-500';
+    if (rate >= 60) return 'bg-amber-400';
+    return 'bg-rose-500';
+};
+
+const daysOverdue = (d) => {
+    const diff = Math.floor((Date.now() - new Date(d)) / 86400000);
+    return diff > 0 ? diff : 0;
+};
+
+// Donut chart arc helpers
+const PIE_R = 36;
+const PIE_C = 2 * Math.PI * PIE_R;
+const pieR  = PIE_R; // exposed to template as non-reactive const (safe for static use)
+
+const donutSegments = computed(() => {
+    const total = props.taskBreakdown.reduce((s, x) => s + x.count, 0);
+    if (!total) return [];
+    let offset = 0;
+    return props.taskBreakdown.map(item => {
+        const pct   = item.count / total;
+        const dash  = pct * PIE_C;
+        const gap   = PIE_C - dash;
+        const seg   = { ...item, dasharray: `${dash} ${gap}`, dashoffset: -offset * PIE_C, pct: Math.round(pct * 100) };
+        offset += pct;
+        return seg;
+    });
+});
 </script>
 
 <template>
-    <Head title="Command Center" />
-
+    <Head title="Dashboard — GGAA" />
     <AdminLayout>
-        <div class="p-8 max-w-[1600px] mx-auto space-y-10">
-            <!-- Header section -->
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div class="px-4 sm:px-6 lg:px-8 py-8 max-w-screen-2xl mx-auto space-y-8">
+
+            <!-- ── Page Header ─────────────────────────────────────────────── -->
+            <div class="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <h1 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                    <h1 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                         {{ $t('firm_overview') }}
                     </h1>
-                    <p class="text-slate-500 dark:text-slate-400 font-medium mt-1">
-                        Real-time operational health and workforce distribution.
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $t('dashboard_subtitle') }}</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <Link :href="route('ledger.index')" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 dark:bg-slate-700 text-white hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5">
+                        <BanknotesIcon class="h-3.5 w-3.5" />{{ $t('ledger') }}
+                    </Link>
+                    <Link :href="route('super-admin.reports')" class="px-3 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5">
+                        <ChartBarIcon class="h-3.5 w-3.5" />{{ $t('reports') }}
+                    </Link>
+                </div>
+            </div>
+
+            <!-- ── KPI Grid ────────────────────────────────────────────────── -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+
+                <!-- Active Clients -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30">
+                            <UsersIcon class="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Clients</span>
+                    </div>
+                    <p class="text-3xl font-black text-slate-900 dark:text-white">{{ kpis.active_clients }}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ kpis.total_clients }} total</p>
+                </div>
+
+                <!-- Staff -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="p-2 rounded-xl bg-violet-50 dark:bg-violet-900/30">
+                            <BriefcaseIcon class="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                        </div>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Staff</span>
+                    </div>
+                    <p class="text-3xl font-black text-slate-900 dark:text-white">{{ kpis.total_staff }}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">employees</p>
+                </div>
+
+                <!-- Task Completion -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30">
+                            <CheckCircleIcon class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Tasks</span>
+                    </div>
+                    <p class="text-3xl font-black text-slate-900 dark:text-white">{{ taskCompletionRate }}%</p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ kpis.tasks_done }}/{{ kpis.tasks_total }} done</p>
+                </div>
+
+                <!-- Overdue Tasks -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="p-2 rounded-xl bg-rose-50 dark:bg-rose-900/30">
+                            <ExclamationTriangleIcon class="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                        </div>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Overdue</span>
+                    </div>
+                    <p class="text-3xl font-black" :class="kpis.tasks_overdue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'">
+                        {{ kpis.tasks_overdue }}
                     </p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ kpis.tasks_waiting }} waiting</p>
                 </div>
-                <div class="flex items-center gap-3">
-                    <div class="flex -space-x-3 overflow-hidden">
-                        <div v-for="i in 5" :key="i" class="inline-block h-10 w-10 rounded-full ring-4 ring-white dark:ring-slate-900 bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500">
-                            {{ String.fromCharCode(64 + i) }}
+
+                <!-- Ledger Review Queue -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="p-2 rounded-xl bg-amber-50 dark:bg-amber-900/30">
+                            <DocumentTextIcon class="h-5 w-5 text-amber-600 dark:text-amber-400" />
                         </div>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Ledger</span>
                     </div>
-                    <div class="h-10 w-[1px] bg-slate-200 dark:bg-slate-800 mx-2"></div>
-                    <button class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-blue-600/20">
-                        Export Report
-                    </button>
+                    <p class="text-3xl font-black" :class="kpis.ledger_pending > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'">
+                        {{ kpis.ledger_pending }}
+                    </p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ kpis.ledger_verified }} verified</p>
+                </div>
+
+                <!-- Active Projects -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30">
+                            <FolderOpenIcon class="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Projects</span>
+                    </div>
+                    <p class="text-3xl font-black" :class="kpis.projects_overdue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'">
+                        {{ kpis.projects_active }}
+                    </p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ kpis.projects_overdue }} overdue</p>
                 </div>
             </div>
 
-            <!-- Global Stats Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div v-for="stat in globalStats" :key="stat.name" class="relative group bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700/50 overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1">
-                    <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-slate-50 dark:bg-slate-700/30 rounded-full transition-transform group-hover:scale-150"></div>
-                    <div class="relative flex items-center gap-4">
-                        <div :class="[stat.bg, stat.color, 'p-3 rounded-2xl']">
-                            <component :is="stat.icon" class="h-6 w-6" />
-                        </div>
-                        <div>
-                            <p class="text-xs font-black text-slate-400 uppercase tracking-widest">{{ stat.name }}</p>
-                            <p class="text-3xl font-black text-slate-900 dark:text-white mt-1">{{ stat.value }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- ── Middle Row: Task Donut + Branches ─────────────────────── -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                <!-- Branch Performance Section -->
-                <div class="xl:col-span-7 space-y-6">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <BuildingOfficeIcon class="h-6 w-6 text-blue-600" />
-                            Branch Performance
-                        </h2>
-                        <Link :href="route('super-admin.branches')" class="text-sm font-bold text-blue-600 hover:underline">View All</Link>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div v-for="branch in branches" :key="branch.id" class="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700/50 shadow-sm transition-all hover:ring-2 hover:ring-blue-500/20">
-                            <div class="flex items-start justify-between mb-6">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-12 w-12 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center border border-slate-100 dark:border-slate-700">
-                                        <BuildingOfficeIcon class="h-6 w-6 text-slate-400" />
-                                    </div>
-                                    <div>
-                                        <h3 class="font-bold text-slate-900 dark:text-white">{{ branch.name }}</h3>
-                                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Operational Node</span>
-                                    </div>
+                <!-- Task Status Donut Chart -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col">
+                    <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4">Task Status Breakdown</h2>
+                    <div class="flex items-center gap-6 flex-1">
+                        <!-- Donut SVG with centered label overlay -->
+                        <div class="relative shrink-0 w-28 h-28">
+                            <svg viewBox="0 0 88 88" class="w-full h-full -rotate-90">
+                                <circle cx="44" cy="44" :r="pieR" fill="none" stroke="#e5e7eb" stroke-width="10" />
+                                <circle
+                                    v-for="(seg, i) in donutSegments" :key="i"
+                                    cx="44" cy="44" :r="pieR"
+                                    fill="none" :stroke="seg.color" stroke-width="10"
+                                    :stroke-dasharray="seg.dasharray"
+                                    :stroke-dashoffset="seg.dashoffset"
+                                    stroke-linecap="butt"
+                                />
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div class="text-center">
+                                    <p class="text-xl font-black text-slate-800 dark:text-white leading-none">{{ kpis.tasks_total }}</p>
+                                    <p class="text-[10px] text-slate-400 leading-none mt-0.5">tasks</p>
                                 </div>
-                                <span :class="[getComplianceStatus(branch.compliance_rate).color, 'px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest']">
-                                    {{ getComplianceStatus(branch.compliance_rate).label }}
+                            </div>
+                        </div>
+                        <div class="space-y-2 min-w-0">
+                            <div v-for="seg in donutSegments" :key="seg.label" class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: seg.color }"></span>
+                                <span class="text-xs text-slate-600 dark:text-slate-400 truncate">{{ seg.label }}</span>
+                                <span class="ml-auto text-xs font-bold text-slate-800 dark:text-slate-200">{{ seg.count }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Verified Ledger Sales -->
+                    <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Verified Sales Revenue</p>
+                        <div class="flex items-center gap-2">
+                            <BanknotesIcon class="h-4 w-4 text-emerald-500" />
+                            <span class="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                {{ fmtEtb(kpis.ledger_sales_etb) }}
+                            </span>
+                        </div>
+                        <Link :href="route('ledger.index')" class="mt-1 text-xs text-blue-500 hover:underline flex items-center gap-1">
+                            View all ledgers <ArrowRightIcon class="h-3 w-3" />
+                        </Link>
+                    </div>
+                </div>
+
+                <!-- Branch Health Grid -->
+                <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Branch Health</h2>
+                        <Link :href="route('super-admin.branches')" class="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                            Manage <ArrowRightIcon class="h-3 w-3" />
+                        </Link>
+                    </div>
+                    <div class="space-y-4">
+                        <div v-for="branch in branches" :key="branch.id">
+                            <div class="flex items-center justify-between mb-1">
+                                <div class="flex items-center gap-2">
+                                    <BuildingOfficeIcon class="h-4 w-4 text-slate-400" />
+                                    <Link :href="route('super-admin.branches.show', branch.id)" class="text-sm font-semibold text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                        {{ branch.name }}
+                                    </Link>
+                                </div>
+                                <div class="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                    <span>{{ branch.client_count }} clients</span>
+                                    <span>{{ branch.staff_count }} staff</span>
+                                    <span v-if="branch.overdue_tasks > 0" class="text-rose-500 font-semibold">
+                                        {{ branch.overdue_tasks }} overdue
+                                    </span>
+                                    <span :class="getComplianceColor(branch.compliance_rate)" class="font-bold w-10 text-right">
+                                        {{ branch.compliance_rate }}%
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+                                <div class="h-2 rounded-full transition-all duration-500"
+                                    :class="getBranchBarColor(branch.compliance_rate)"
+                                    :style="{ width: branch.compliance_rate + '%' }">
+                                </div>
+                            </div>
+                        </div>
+                        <p v-if="!branches.length" class="text-sm text-slate-400 text-center py-4">No branches found.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Bottom Row: Urgent Tasks + Staff + Pending Ledgers ──────── -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+                <!-- Urgent / Overdue Tasks -->
+                <div class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+                        <div class="flex items-center gap-2">
+                            <ExclamationTriangleIcon class="h-4 w-4 text-rose-500" />
+                            <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Overdue Tasks</h2>
+                        </div>
+                        <Link :href="route('super-admin.tasks.index')" class="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                            All <ArrowRightIcon class="h-3 w-3" />
+                        </Link>
+                    </div>
+                    <div v-if="urgentTasks.length" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        <div v-for="task in urgentTasks" :key="task.id" class="px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{{ task.title }}</p>
+                            <div class="flex items-center justify-between mt-1">
+                                <span class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[140px]">
+                                    {{ task.client?.company_name ?? '—' }}
+                                </span>
+                                <span class="text-xs font-bold text-rose-500 shrink-0">
+                                    {{ daysOverdue(task.due_date) }}d overdue
                                 </span>
                             </div>
-
-                            <div class="space-y-4">
-                                <div class="flex items-end justify-between">
-                                    <div>
-                                        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Compliance Rate</div>
-                                        <div class="text-2xl font-black text-slate-900 dark:text-white">{{ branch.compliance_rate }}%</div>
-                                    </div>
-                                    <div class="h-8 w-24">
-                                        <!-- Mock sparkline -->
-                                        <div class="flex items-end gap-1 h-full">
-                                            <div v-for="i in 8" :key="i" class="flex-1 bg-blue-100 dark:bg-blue-900/30 rounded-t-sm" :style="{ height: (20 + Math.random() * 80) + '%' }"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
-                                    <div class="bg-blue-600 h-full rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(37,99,235,0.4)]" :style="{ width: branch.compliance_rate + '%' }"></div>
-                                </div>
-                            </div>
-
-                            <div class="mt-6 pt-6 border-t border-slate-50 dark:border-slate-700/50 flex items-center justify-between">
-                                <div class="flex -space-x-2">
-                                    <div v-for="i in 3" :key="i" class="h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-700 border-2 border-white dark:border-slate-800"></div>
-                                </div>
-                                <Link :href="route('super-admin.branches.show', branch.id)" class="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">Details &rarr;</Link>
-                            </div>
                         </div>
+                    </div>
+                    <div v-else class="px-5 py-8 text-center text-sm text-slate-400">
+                        ✅ No overdue tasks — all clear!
                     </div>
                 </div>
 
-                <!-- Workforce Allocation ranking -->
-                <div class="xl:col-span-5 space-y-6">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <UsersIcon class="h-6 w-6 text-indigo-600" />
-                            Workforce Ranking
-                        </h2>
-                        <div class="flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                            <ArrowTrendingUpIcon class="h-4 w-4 text-emerald-500" />
-                            <span class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Live Load</span>
+                <!-- Staff Capacity Ranking -->
+                <div class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+                        <div class="flex items-center gap-2">
+                            <BriefcaseIcon class="h-4 w-4 text-violet-500" />
+                            <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Staff Capacity</h2>
                         </div>
+                        <Link :href="route('super-admin.staff')" class="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                            All <ArrowRightIcon class="h-3 w-3" />
+                        </Link>
                     </div>
-
-                    <div class="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700/50 shadow-sm overflow-hidden">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left">
-                                <thead>
-                                    <tr class="border-b border-slate-50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/20">
-                                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Professional</th>
-                                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Clients</th>
-                                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Capacity Load</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-50 dark:divide-slate-700/50">
-                                    <tr v-for="employee in employees" :key="employee.id" class="group hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
-                                        <td class="px-6 py-4">
-                                            <div class="flex items-center gap-3">
-                                                <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 group-hover:scale-110 transition-transform">
-                                                    {{ employee.name.charAt(0) }}
-                                                </div>
-                                                <div>
-                                                    <div class="font-bold text-slate-900 dark:text-white">{{ employee.name }}</div>
-                                                    <div class="text-[10px] text-slate-400 font-medium">{{ employee.branch.name }}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td class="px-6 py-4 text-center font-black text-slate-900 dark:text-white">
-                                            {{ employee.clients_count }}
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <div class="flex items-center gap-3">
-                                                <div class="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                    <div 
-                                                        class="h-full rounded-full transition-all duration-700 shadow-sm" 
-                                                        :class="getCapacityColor((employee.capacity_points / 30) * 100)"
-                                                        :style="{ width: Math.min((employee.capacity_points / 30) * 100, 100) + '%' }">
-                                                    </div>
-                                                </div>
-                                                <span class="text-xs font-black text-slate-700 dark:text-slate-200 w-8">{{ Math.round((employee.capacity_points / 30) * 100) }}%</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                    <div class="divide-y divide-slate-100 dark:divide-slate-700 overflow-y-auto max-h-72">
+                        <div v-for="emp in employees" :key="emp.id" class="px-5 py-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate max-w-[140px]">{{ emp.name }}</span>
+                                <span class="text-xs px-2 py-0.5 rounded-full font-bold shrink-0" :class="getCapacityColor(emp.capacity_points).badge">
+                                    {{ emp.capacity_points }} pts
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                                    <div class="h-1.5 rounded-full transition-all duration-500"
+                                        :class="getCapacityColor(emp.capacity_points).bar"
+                                        :style="{ width: Math.min((emp.capacity_points / 30) * 100, 100) + '%' }">
+                                    </div>
+                                </div>
+                                <span class="text-[10px] text-slate-400 shrink-0 w-14 text-right">{{ emp.clients_count }} clients</span>
+                            </div>
                         </div>
-                        <div class="p-4 bg-slate-50/50 dark:bg-slate-900/20 text-center">
-                            <Link :href="route('super-admin.staff')" class="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">Manage Full Workforce List</Link>
-                        </div>
+                        <p v-if="!employees.length" class="px-5 py-6 text-sm text-slate-400 text-center">No staff found.</p>
                     </div>
                 </div>
+
+                <!-- Pending Ledger Reviews -->
+                <div class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+                        <div class="flex items-center gap-2">
+                            <ClockIcon class="h-4 w-4 text-amber-500" />
+                            <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Pending Review</h2>
+                        </div>
+                        <Link :href="route('ledger.index')" class="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                            All <ArrowRightIcon class="h-3 w-3" />
+                        </Link>
+                    </div>
+                    <div v-if="pendingLedgers.length" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        <Link
+                            v-for="entry in pendingLedgers" :key="entry.id"
+                            :href="route('ledger.show', entry.client_id)"
+                            class="flex items-center justify-between px-5 py-3 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors group">
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                    {{ entry.client?.company_name ?? '—' }}
+                                </p>
+                                <p class="text-xs text-slate-400">{{ entry.eth_month }} {{ entry.eth_year }}</p>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                    submitted
+                                </span>
+                                <ArrowRightIcon class="h-3.5 w-3.5 text-slate-300 group-hover:text-blue-500 transition-colors" />
+                            </div>
+                        </Link>
+                    </div>
+                    <div v-else class="px-5 py-8 text-center text-sm text-slate-400">
+                        ✅ No ledgers awaiting review.
+                    </div>
+                </div>
+
             </div>
         </div>
     </AdminLayout>
 </template>
-
-<style scoped>
-.glass {
-    @apply backdrop-blur-md bg-white/70 dark:bg-slate-800/70 border border-white/20 dark:border-slate-700/20;
-}
-</style>

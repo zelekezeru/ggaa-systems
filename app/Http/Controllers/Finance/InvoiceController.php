@@ -187,4 +187,27 @@ class InvoiceController extends Controller
         $invoice->update(['status' => 'cancelled']);
         return back()->with('success', 'Invoice cancelled.');
     }
+
+    public function approvePayment(ServiceInvoicePayment $payment)
+    {
+        $payment->update([
+            'status'      => 'Completed',
+            'approved_at' => now(),
+            'approved_by' => Auth::id(),
+        ]);
+        return back()->with('success', 'Payment approved.');
+    }
+
+    public function rejectPayment(Request $request, ServiceInvoicePayment $payment)
+    {
+        $request->validate(['reason' => 'nullable|string|max:300']);
+
+        $payment->update([
+            'status'      => 'Rejected',
+            'approved_at' => now(),
+            'approved_by' => Auth::id(),
+            'notes'       => trim(($payment->notes ? $payment->notes . "\n\n" : '') . 'Rejected: ' . ($request->reason ?? 'No reason provided.')),
+        ]);
+        return back()->with('success', 'Payment rejected.');
+    }
 }

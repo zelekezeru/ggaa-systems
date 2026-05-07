@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoicePayment;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
@@ -58,6 +59,7 @@ class InvoiceController extends Controller
                 'paid_at'        => $p->paid_at,
                 'payment_method' => $p->payment_method,
                 'reference'      => $p->reference,
+                'status'         => $p->status ?? 'Completed',
                 'invoice'        => $p->invoice ? [
                     'id'             => $p->invoice->id,
                     'invoice_number' => $p->invoice->invoice_number,
@@ -87,5 +89,35 @@ class InvoiceController extends Controller
         $fmt = fn ($v) => number_format((float) $v, 2);
         $pdf = Pdf::loadView('exports.service-invoice', compact('invoice', 'fmt'))->setPaper('a4', 'portrait');
         return $pdf->download($invoice->invoice_number . '.pdf');
+    }
+
+    public function submitPayment(Request $request, ServiceInvoice $invoice)
+    {
+        // Global scope ensures the invoice belongs to the authenticated client
+        $validated = $request->validate([
+            'amount'         => 'required|numeric|min:0.01|max:' . max(0.01, $invoice->balance_due),
+            'payment_method' => 'required|in:cash,bank_transfer,check,mobile_money,card_payment,other',
+            'reference'      => 'nullable|string|max:120',
+            'paid_at'        => 'required|date|before_or_equal:today',
+            'notes'          => 'nullable|string|max:500',
+            'receipt'        => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+        ]);
+
+        $receiptPath = $request->hasFile('receipt')
+            ? $request->file('receipt')->store('invoice-receipts', 'public')
+            : null;
+
+        $invoice->payments()->create([
+            'amount'             => $validated['amount'],
+            'payment_method'     => $validated['payment_method'],
+            'reference'          => $validated['reference'] ?? null,
+            'paid_at'            => $validated['paid_at'],
+            'notes'              => $validated['notes'] ?? null,
+            'receipt_photo_path' => $receiptPath,
+            'status'             => 'Pending',
+            'recorded_by'        => Auth::id(),
+        ]);
+
+        return back()->with('success', 'Payment submitted for approval.');
     }
 }

@@ -83,9 +83,9 @@ class MonthlyLedgerController extends Controller
 
     public function store(Request $request, Client $client)
     {
-        abort_unless(Client::find($client->id), 403);
+        abort_unless($client->exists, 403);
 
-        $validated = $this->validateLedgerData($request);
+        $validated = $this->validateLedgerData($request, $client->id);
         $validated['client_id']    = $client->id;
         $validated['submitted_by'] = Auth::id();
 
@@ -109,7 +109,7 @@ class MonthlyLedgerController extends Controller
             abort_unless($user->hasAnyRole(['Super Admin', 'Branch Manager']), 403, 'Only a manager can edit a verified entry.');
         }
 
-        $validated = $this->validateLedgerData($request, $ledger);
+        $validated = $this->validateLedgerData($request, $ledger->client_id, $ledger);
 
         if ($validated['status'] === 'submitted' && $ledger->status === 'draft') {
             $validated['submitted_at'] = now();
@@ -161,7 +161,7 @@ class MonthlyLedgerController extends Controller
 
     public function storeBankAccount(Request $request, Client $client)
     {
-        abort_unless(Client::find($client->id), 403);
+        abort_unless($client->exists, 403);
 
         $validated = $request->validate([
             'bank_name'      => 'required|string|max:100',
@@ -176,9 +176,43 @@ class MonthlyLedgerController extends Controller
 
     // ── Private Helpers ──
 
-    private function validateLedgerData(Request $request, ?MonthlyLedger $existing = null): array
+    private function validateLedgerData(Request $request, int $clientId, ?MonthlyLedger $existing = null): array
     {
         $monthRule = Rule::in(MonthlyLedger::ethiopianMonths());
+        $excludeId = $existing?->id;
+
+        // Cross-month overlap rule for sales-document number ranges
+        $overlapRule = function (string $startCol, string $endCol) use ($clientId, $excludeId, $request) {
+            return function ($attribute, $value, $fail) use ($startCol, $endCol, $clientId, $excludeId, $request) {
+                $start = $request->input($startCol);
+                $end   = $request->input($endCol);
+                if ($start === null || $end === null) return;
+
+                $conflict = MonthlyLedger::withoutGlobalScopes()
+                    ->where('client_id', $clientId)
+                    ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+                    ->whereNotNull($startCol)->whereNotNull($endCol)
+                    ->where(function ($q) use ($startCol, $endCol, $start, $end) {
+                        // Two ranges overlap iff start <= other.end AND end >= other.start
+                        $q->where($startCol, '<=', $end)->where($endCol, '>=', $start);
+                    })
+                    ->first(['eth_year', 'eth_month', $startCol, $endCol]);
+
+                if ($conflict) {
+                    $fail("Range overlaps with {$conflict->eth_month} {$conflict->eth_year} ({$conflict->$startCol}–{$conflict->$endCol}).");
+                }
+            };
+        };
+
+        // Inventory sold cannot exceed available units (start + purchases)
+        $inventoryRule = function ($attribute, $value, $fail) use ($request) {
+            if ($value === null || $value === '') return;
+            $start     = (float) ($request->input('inventory_items_start') ?? 0);
+            $purchases = (float) ($request->input('purchases') ?? 0);
+            if ((float) $value > $start + $purchases) {
+                $fail('Sold quantity cannot exceed beginning inventory + purchases.');
+            }
+        };
 
         return $request->validate([
             'eth_year'  => 'required|integer|min:2000|max:2100',
@@ -188,9 +222,20 @@ class MonthlyLedgerController extends Controller
             'cash_machine_sales'  => 'nullable|numeric|min:0',
             'manual_sales'        => 'nullable|numeric|min:0',
 
+            // Document-number audit trail
+            'cash_machine_start_number' => ['nullable', 'integer', 'min:0', 'required_with:cash_machine_end_number'],
+            'cash_machine_end_number'   => ['nullable', 'integer', 'min:0', 'required_with:cash_machine_start_number', 'gte:cash_machine_start_number', $overlapRule('cash_machine_start_number', 'cash_machine_end_number')],
+            'manual_receipt_start_number' => ['nullable', 'integer', 'min:0', 'required_with:manual_receipt_end_number'],
+            'manual_receipt_end_number'   => ['nullable', 'integer', 'min:0', 'required_with:manual_receipt_start_number', 'gte:manual_receipt_start_number', $overlapRule('manual_receipt_start_number', 'manual_receipt_end_number')],
+
             'beginning_inventory' => 'nullable|numeric|min:0',
             'purchases'           => 'nullable|numeric|min:0',
             'ending_inventory'    => 'nullable|numeric|min:0',
+
+            // Inventory unit-level tracking
+            'inventory_items_start'   => 'nullable|numeric|min:0',
+            'inventory_items_end'     => 'nullable|numeric|min:0',
+            'inventory_sold_quantity' => ['nullable', 'numeric', 'min:0', $inventoryRule],
 
             'salary_expense'             => 'nullable|numeric|min:0',
             'pension_expense'            => 'nullable|numeric|min:0',

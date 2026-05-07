@@ -13,6 +13,13 @@ class MonthlyLedger extends Model
     protected $casts = [
         'submitted_at' => 'datetime',
         'verified_at'  => 'datetime',
+        'cash_machine_start_number'   => 'string',
+        'cash_machine_end_number'     => 'string',
+        'manual_receipt_start_number' => 'string',
+        'manual_receipt_end_number'   => 'string',
+        'inventory_items_start'       => 'decimal:3',
+        'inventory_items_end'         => 'decimal:3',
+        'inventory_sold_quantity'     => 'decimal:3',
     ];
 
     protected $appends = [
@@ -24,6 +31,8 @@ class MonthlyLedger extends Model
         'net_profit',
         'profit_tax',
         'total_bank_balance',
+        'cash_machine_sales_count',
+        'manual_receipt_count',
     ];
 
     // ── Computed Attributes (mirror the spreadsheet formulas) ──
@@ -85,6 +94,22 @@ class MonthlyLedger extends Model
     public function getTotalBankBalanceAttribute(): float
     {
         return (float) $this->bankAccountBalances()->sum('balance');
+    }
+
+    public function getCashMachineSalesCountAttribute(): int
+    {
+        $start = $this->cash_machine_start_number;
+        $end   = $this->cash_machine_end_number;
+        if ($start === null || $end === null || $end < $start) return 0;
+        return (int) ($end - $start);
+    }
+
+    public function getManualReceiptCountAttribute(): int
+    {
+        $start = $this->manual_receipt_start_number;
+        $end   = $this->manual_receipt_end_number;
+        if ($start === null || $end === null || $end < $start) return 0;
+        return (int) ($end - $start);
     }
 
     // ── Relationships ──

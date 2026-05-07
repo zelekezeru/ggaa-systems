@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Branch;
+use App\Models\User;
 use Illuminate\Validation\Rule;
 
 class BranchController extends Controller
@@ -19,9 +20,9 @@ class BranchController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        Branch::create($validated);
+        $branch = Branch::create($validated);
+        $this->promoteToBranchManager($branch);
 
-        // The ->with() method attaches a flash message to the session
         return back()->with('success', 'Branch created successfully.');
     }
 
@@ -41,9 +42,43 @@ class BranchController extends Controller
             'is_active' => 'boolean',
         ]);
 
+        $previousManagerId = $branch->manager_id;
         $branch->update($validated);
+        $this->promoteToBranchManager($branch, $previousManagerId);
 
         return back()->with('success', 'Branch updated successfully.');
+    }
+
+    /**
+     * Promote the assigned manager to Branch Manager role + bind their branch_id.
+     * If a previous manager is being replaced, leave their role alone (they may still
+     * be a Branch Manager elsewhere) — but clear branch_id only if they don't manage
+     * another branch.
+     */
+    protected function promoteToBranchManager(Branch $branch, ?int $previousManagerId = null): void
+    {
+        if ($previousManagerId && $previousManagerId !== $branch->manager_id) {
+            $previous = User::find($previousManagerId);
+            if ($previous && ! Branch::where('manager_id', $previous->id)->exists()) {
+                // No longer manages any branch — drop role + clear branch link
+                $previous->removeRole('Branch Manager');
+                if ($previous->branch_id === $branch->id) {
+                    $previous->update(['branch_id' => null]);
+                }
+            }
+        }
+
+        if ($branch->manager_id) {
+            $manager = User::find($branch->manager_id);
+            if ($manager) {
+                if (! $manager->hasRole('Branch Manager')) {
+                    $manager->assignRole('Branch Manager');
+                }
+                if ($manager->branch_id !== $branch->id) {
+                    $manager->update(['branch_id' => $branch->id]);
+                }
+            }
+        }
     }
 
     public function destroy(Branch $branch)

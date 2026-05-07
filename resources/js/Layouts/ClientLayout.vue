@@ -8,6 +8,10 @@ import ThemeToggle from '@/Components/ThemeToggle.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
+const userPermissions = computed(() => page.props.auth?.user?.permissions ?? []);
+const canViewLedger = computed(() => userPermissions.value.includes('view client ledger reports'));
+const canViewInvoices = computed(() => userPermissions.value.includes('view own invoices'));
+const canViewPayments = computed(() => userPermissions.value.includes('view own payments'));
 </script>
 
 <template>
@@ -40,11 +44,32 @@ const user = computed(() => page.props.auth?.user);
                         >
                             Messages
                         </Link>
-                        <Link 
-                            :href="route('client.team-projects.index')" 
+                        <Link
+                            :href="route('client.team-projects.index')"
                             :class="[route().current('client.team-projects.*') ? 'text-white bg-blue-800/50' : 'text-blue-100 hover:text-white', 'px-3 py-2 rounded-xl text-sm font-bold transition-all']"
                         >
                             Projects
+                        </Link>
+                        <Link
+                            v-if="canViewLedger"
+                            :href="route('client.ledger.index')"
+                            :class="[route().current('client.ledger.*') ? 'text-white bg-blue-800/50' : 'text-blue-100 hover:text-white', 'px-3 py-2 rounded-xl text-sm font-bold transition-all']"
+                        >
+                            Financial Ledger
+                        </Link>
+                        <Link
+                            v-if="canViewInvoices"
+                            :href="route('client.invoices.index')"
+                            :class="[route().current('client.invoices.*') ? 'text-white bg-blue-800/50' : 'text-blue-100 hover:text-white', 'px-3 py-2 rounded-xl text-sm font-bold transition-all']"
+                        >
+                            Invoices
+                        </Link>
+                        <Link
+                            v-if="canViewPayments"
+                            :href="route('client.payments.index')"
+                            :class="[route().current('client.payments.*') ? 'text-white bg-blue-800/50' : 'text-blue-100 hover:text-white', 'px-3 py-2 rounded-xl text-sm font-bold transition-all']"
+                        >
+                            Payments
                         </Link>
                     </nav>
                 </div>
@@ -86,6 +111,9 @@ const user = computed(() => page.props.auth?.user);
                 <Link :href="route('client.dashboard')" class="text-xs font-bold text-blue-100 p-2">Dashboard</Link>
                 <Link :href="route('client.messages.index')" class="text-xs font-bold text-blue-100 p-2">Messages</Link>
                 <Link :href="route('client.team-projects.index')" class="text-xs font-bold text-blue-100 p-2">Projects</Link>
+                <Link v-if="canViewLedger" :href="route('client.ledger.index')" class="text-xs font-bold text-blue-100 p-2">Ledger</Link>
+                <Link v-if="canViewInvoices" :href="route('client.invoices.index')" class="text-xs font-bold text-blue-100 p-2">Invoices</Link>
+                <Link v-if="canViewPayments" :href="route('client.payments.index')" class="text-xs font-bold text-blue-100 p-2">Payments</Link>
             </div>
         </div>
 

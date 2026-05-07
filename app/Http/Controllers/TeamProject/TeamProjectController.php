@@ -154,6 +154,23 @@ class TeamProjectController extends Controller
 
         abort_unless($user->can('view team projects') || $isMember || $isLeader || $isClient, 403);
 
+        // Ledgers attached to this team project — visible to members or admins
+        $ledgers = \App\Models\MonthlyLedger::where('team_project_id', $teamProject->id)
+            ->orWhere(fn ($q) => $teamProject->client_id ? $q->where('client_id', $teamProject->client_id)->whereNull('team_project_id') : null)
+            ->with(['client:id,company_name', 'submittedBy:id,name', 'verifiedBy:id,name'])
+            ->orderByDesc('eth_year')
+            ->get()
+            ->map(fn ($l) => [
+                'id'          => $l->id,
+                'client'      => $l->client?->company_name,
+                'eth_year'    => $l->eth_year,
+                'eth_month'   => $l->eth_month,
+                'status'      => $l->status,
+                'net_profit'  => $l->net_profit,
+                'submitted_by'=> $l->submittedBy?->name,
+                'verified_by' => $l->verifiedBy?->name,
+            ]);
+
         return Inertia::render('TeamProjects/Show', [
             'project'     => $teamProject,
             'isMember'    => $isMember,
@@ -161,6 +178,7 @@ class TeamProjectController extends Controller
             'isClient'    => $isClient,
             'canManage'   => $canManage,
             'staffOptions' => $canManage ? $this->staffOptions() : [],
+            'ledgers'     => $ledgers,
         ]);
     }
 

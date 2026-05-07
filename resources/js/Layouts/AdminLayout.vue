@@ -83,9 +83,9 @@ const navigation = computed(() => [
     },
     { name: t('customers') || 'Customers', href: route('super-admin.clients'), icon: UsersIcon, current: page.url.startsWith('/super-admin/clients') },
     { name: t('staff'), href: route('super-admin.staff'), icon: UserGroupIcon, current: page.url.startsWith('/super-admin/staff') },
+    { name: t('reports'), href: route('super-admin.reports'), icon: ChartBarIcon, current: page.url.startsWith('/super-admin/reports') },
     { name: t('service_types') || 'Service configs', href: route('super-admin.service-types'), icon: WrenchScrewdriverIcon, current: page.url.startsWith('/super-admin/service-types') },
     { name: t('role_management'), href: route('super-admin.roles.index'), icon: ShieldCheckIcon, current: page.url.startsWith('/super-admin/roles') },
-    { name: t('reports'), href: route('super-admin.reports'), icon: ChartBarIcon, current: page.url.startsWith('/super-admin/reports') },
 ]);
 </script>
 

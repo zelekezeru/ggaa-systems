@@ -45,6 +45,10 @@ class RoleAndPermissionSeeder extends Seeder
             'send payment reminders',
             'record payments',
             'manage billing',
+            'approve payments',
+            'reject payments',
+            'generate expected payments',
+            'submit draft payments',
             // Client management permissions
             'manage-clients',
             'view-clients',
@@ -68,8 +72,20 @@ class RoleAndPermissionSeeder extends Seeder
             // Service invoicing (firm's billing of clients) permissions
             'view ledger progress',
             'manage service invoices',
+            'send invoice',
+            'cancel invoice',
+            'download invoice report',
+            // Payment workflow permissions
+            'approve invoice payments',
+            'schedule invoice payments',
+            'reject invoice payments',
+            'view all payments',
+            // Client-side payment portal permissions
             'view own invoices',
             'view own payments',
+            'submit invoice payment',
+            'upload payment receipt',
+            'download own invoices',
         ];
 
         foreach ($permissions as $permission) {
@@ -127,12 +143,23 @@ class RoleAndPermissionSeeder extends Seeder
             'send payment reminders',
             'record payments',
             'manage billing',
+            'approve payments',
+            'reject payments',
+            'generate expected payments',
+            'submit draft payments',
             'view team projects',
             'participate team project',
             'view ledger progress',
             'view client ledger reports',
             'download ledger reports',
             'manage service invoices',
+            'send invoice',
+            'cancel invoice',
+            'download invoice report',
+            'approve invoice payments',
+            'schedule invoice payments',
+            'reject invoice payments',
+            'view all payments',
         ]);
 
         $clientUser->syncPermissions([
@@ -144,6 +171,9 @@ class RoleAndPermissionSeeder extends Seeder
             'download ledger reports',
             'view own invoices',
             'view own payments',
+            'submit invoice payment',
+            'upload payment receipt',
+            'download own invoices',
         ]);
     }
 }
