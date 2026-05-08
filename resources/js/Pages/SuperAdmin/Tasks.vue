@@ -17,6 +17,8 @@ import {
     ExclamationTriangleIcon,
     ClockIcon,
     EyeIcon,
+    PaperClipIcon,
+    ChatBubbleBottomCenterTextIcon,
 } from '@heroicons/vue/24/outline';
 import { CheckBadgeIcon } from '@heroicons/vue/24/solid';
 
@@ -188,7 +190,35 @@ function dueDateLabel(task) {
     return formatDate(task.due_date);
 }
 
+function progressPercent(status) {
+    if (status === 'Waiting on Client') return 5;
+    if (status === 'To Do') return 35;
+    if (status === 'In Review') return 70;
+    if (status === 'Done') return 100;
+    return 0;
+}
+
 const STATUSES = ['all', 'Waiting on Client', 'To Do', 'In Review', 'Done'];
+const STATUS_ORDER = ['Waiting on Client', 'To Do', 'In Review', 'Done'];
+
+function advanceTaskStage(task) {
+    const idx = STATUS_ORDER.indexOf(task.status);
+    if (idx === -1 || idx >= STATUS_ORDER.length - 1) return;
+    
+    const nextStatus = STATUS_ORDER[idx + 1];
+
+    editForm.client_id = task.client_id;
+    editForm.task_template_id = task.task_template_id;
+    editForm.due_date = task.due_date ? task.due_date.substring(0, 10) : '';
+    editForm.assigned_user_id = task.assigned_user_id ?? '';
+    editForm.status = nextStatus;
+    editForm.notes = task.notes ?? '';
+    
+    editForm.put(route('super-admin.tasks.update', task.id), {
+        preserveScroll: true,
+        onSuccess: () => { showDetailModal.value = false; }
+    });
+}
 
 const atRiskTasks = computed(() => {
     return props.tasks.filter(t => t.status !== 'Done' && (t.risk_level === '🔴' || t.risk_level === '🟡')).sort((a, b) => dueDiff(a.due_date) - dueDiff(b.due_date));
@@ -362,7 +392,16 @@ const atRiskTasks = computed(() => {
                             <!-- Client / Task type -->
                             <td class="py-3.5 pl-5 pr-3">
                                 <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ task.client?.company_name }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ task.template?.name ?? '—' }}</p>
+                                <div class="flex items-center gap-2 mt-0.5">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ task.template?.name ?? '—' }}</p>
+                                    <div v-if="task.document_path?.length" class="flex items-center gap-0.5 text-xs text-indigo-500" title="Has attachments">
+                                        <PaperClipIcon class="h-3 w-3" />
+                                        <span>{{ task.document_path.length }}</span>
+                                    </div>
+                                    <div v-if="task.notes" class="flex items-center gap-0.5 text-xs text-gray-400" title="Has notes">
+                                        <ChatBubbleBottomCenterTextIcon class="h-3 w-3" />
+                                    </div>
+                                </div>
                             </td>
 
                             <!-- Status badge -->
@@ -663,9 +702,40 @@ const atRiskTasks = computed(() => {
                                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Assigned To</p>
                                     <p class="text-sm font-semibold text-gray-800 dark:text-white">{{ selectedTask.assigned_employee?.name ?? 'Unassigned' }}</p>
                                 </div>
-                                <div v-if="selectedTask.notes" class="col-span-2 bg-gray-50 dark:bg-slate-700 rounded-xl p-3">
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Notes</p>
-                                    <p class="text-sm text-gray-700 dark:text-gray-200">{{ selectedTask.notes }}</p>
+                                <div class="col-span-2 bg-gray-50 dark:bg-slate-700 rounded-xl p-4">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold uppercase tracking-wider">Task Progress</p>
+                                    <div class="relative w-full">
+                                        <div class="overflow-hidden h-2 mb-2 text-xs flex rounded-full bg-gray-200 dark:bg-slate-600">
+                                            <div :style="'width: ' + progressPercent(selectedTask.status) + '%'" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500 transition-all duration-500"></div>
+                                        </div>
+                                        <div class="flex justify-between text-[10px] text-gray-500 dark:text-gray-400 font-medium px-1">
+                                            <span :class="{'text-indigo-600 dark:text-indigo-400 font-bold': progressPercent(selectedTask.status) >= 5}">Pending</span>
+                                            <span :class="{'text-indigo-600 dark:text-indigo-400 font-bold': progressPercent(selectedTask.status) >= 35}">In Progress</span>
+                                            <span :class="{'text-indigo-600 dark:text-indigo-400 font-bold': progressPercent(selectedTask.status) >= 70}">Review</span>
+                                            <span :class="{'text-indigo-600 dark:text-indigo-400 font-bold': progressPercent(selectedTask.status) === 100}">Done</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="selectedTask.notes" class="col-span-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-3 border border-yellow-100 dark:border-yellow-800/30">
+                                    <p class="text-xs text-yellow-800 dark:text-yellow-400 font-bold mb-1 flex items-center gap-1.5 uppercase tracking-wide">
+                                        <ChatBubbleBottomCenterTextIcon class="h-4 w-4" />
+                                        Task Notes
+                                    </p>
+                                    <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ selectedTask.notes }}</p>
+                                </div>
+                                <div v-if="selectedTask.document_path && selectedTask.document_path.length" class="col-span-2 bg-indigo-50/50 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
+                                    <p class="text-xs text-indigo-900 dark:text-indigo-300 font-bold mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                        <PaperClipIcon class="h-4 w-4" />
+                                        Attached Files
+                                    </p>
+                                    <div class="space-y-1.5">
+                                        <template v-for="(path, ix) in selectedTask.document_path" :key="ix">
+                                            <a :href="'/storage/' + path" target="_blank" class="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-md shadow-sm border border-indigo-50 dark:border-indigo-900/50 w-full group">
+                                                <PaperClipIcon class="h-4 w-4 text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors" />
+                                                <span class="truncate font-medium">Download Document {{ ix + 1 }}</span>
+                                            </a>
+                                        </template>
+                                    </div>
                                 </div>
                                 <div v-if="selectedTask.completed_at" class="col-span-2 bg-green-50 dark:bg-green-900/20 rounded-xl p-3 border border-green-200 dark:border-green-800">
                                     <p class="text-xs text-green-600 dark:text-green-400 font-semibold flex items-center gap-1">
@@ -675,7 +745,12 @@ const atRiskTasks = computed(() => {
                                 </div>
                             </div>
 
-                            <div class="mt-5 flex gap-3">
+                            <div class="mt-5 flex flex-wrap gap-3">
+                                <button v-if="selectedTask.status !== 'Done'" @click="advanceTaskStage(selectedTask)" :disabled="editForm.processing" class="w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 mb-1">
+                                    <span v-if="selectedTask.status === 'In Review'">Approve & Mark as Done</span>
+                                    <span v-else>Advance to {{ STATUS_ORDER[STATUS_ORDER.indexOf(selectedTask.status) + 1] }}</span>
+                                    &rarr;
+                                </button>
                                 <button @click="showDetailModal = false; openEditModal(selectedTask)" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
                                     <PencilSquareIcon class="h-4 w-4" /> Edit
                                 </button>

@@ -282,7 +282,7 @@ watch(activeDate, (newVal) => form.scheduled_date = newVal);
                             <div class="flex items-center justify-between px-8 py-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                                 <div>
                                     <h2 class="text-xl font-black tracking-tight text-slate-900 dark:text-white">{{ t('add_errand') || 'New Task' }}</h2>
-                                    <p class="text-xs font-medium text-slate-500 mt-1">For: {{ activeDate === todayStr ? 'Today' : new Date(activeDate).toLocaleDateString() }}</p>
+                                    <p class="text-xs font-medium text-slate-500 mt-1">{{ t('for') || 'For' }}: {{ activeDate === todayStr ? (t('today') || 'Today') : new Date(activeDate).toLocaleDateString() }}</p>
                                 </div>
                                 <button @click="showForm = false" class="p-2 bg-white dark:bg-slate-800 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700">
                                     <XMarkIcon class="h-5 w-5" />
@@ -305,7 +305,7 @@ watch(activeDate, (newVal) => form.scheduled_date = newVal);
 
                                 <div>
                                     <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">{{ t('title') || 'Title' }} *</label>
-                                    <input v-model="form.title" type="text" placeholder="What needs to be done?" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-shadow" required />
+                                    <input v-model="form.title" type="text" :placeholder="t('what_needs_done') || 'What needs to be done?'" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-shadow" required />
                                 </div>
                                 
                                 <div class="grid grid-cols-2 gap-4">
@@ -328,7 +328,7 @@ watch(activeDate, (newVal) => form.scheduled_date = newVal);
                                 
                                 <div>
                                     <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">{{ t('description') || 'Description' }}</label>
-                                    <textarea v-model="form.description" rows="4" placeholder="Add any extra details here..." class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3.5 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm resize-none"></textarea>
+                                    <textarea v-model="form.description" rows="4" :placeholder="t('add_extra_details') || 'Add any extra details here...'" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3.5 text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm resize-none"></textarea>
                                 </div>
                             </form>
 

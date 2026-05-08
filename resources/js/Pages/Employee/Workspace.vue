@@ -21,6 +21,8 @@ import {
     EllipsisHorizontalCircleIcon,
     ChevronDownIcon,
     ChevronUpIcon,
+    PaperClipIcon,
+    ChatBubbleBottomCenterTextIcon,
 } from '@heroicons/vue/24/outline';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -363,7 +365,7 @@ function closeModal() {
                                 <div class="flex justify-between items-start mb-3">
                                     <div class="px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase truncate max-w-[150px]"
                                          :class="col.key === 'Done' ? 'bg-slate-100 text-slate-500 dark:bg-slate-700' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'">
-                                        {{ task.template?.name ?? 'Task' }}
+                                        {{ task.template?.name ?? t('task') }}
                                     </div>
                                     
                                     <!-- Risk Indicator -->
@@ -375,9 +377,20 @@ function closeModal() {
                                 </div>
 
                                 <!-- Card Body -->
-                                <h4 class="text-base font-bold text-slate-900 dark:text-white leading-snug line-clamp-2 mb-4 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                <h4 class="text-base font-bold text-slate-900 dark:text-white leading-snug line-clamp-2 mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                                     {{ task.client?.company_name }}
                                 </h4>
+                                
+                                <div class="flex items-center gap-2 mb-3">
+                                    <div v-if="task.document_path?.length" class="flex items-center gap-1 text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded" :title="t('attachments') || 'Attachments'">
+                                        <PaperClipIcon class="h-3 w-3" />
+                                        <span>{{ task.document_path.length }}</span>
+                                    </div>
+                                    <div v-if="task.notes" class="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded" :title="t('has_notes') || 'Has notes'">
+                                        <ChatBubbleBottomCenterTextIcon class="h-3 w-3" />
+                                        <span>{{ t('notes') || 'Notes' }}</span>
+                                    </div>
+                                </div>
 
                                 <!-- Card Footer -->
                                 <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 pt-3">

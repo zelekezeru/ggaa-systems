@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue';
-import { useForm } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
+import { useForm, router } from '@inertiajs/vue3';
 
 const props = defineProps({
     task: {
@@ -36,6 +36,37 @@ function formatDate(dateStr) {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('en-GB', {
         day: 'numeric', month: 'short', year: 'numeric',
+    });
+}
+
+function progressPercent(status) {
+    if (status === 'Waiting on Client') return 5;
+    if (status === 'To Do') return 35;
+    if (status === 'In Review') return 70;
+    if (status === 'Done') return 100;
+    return 0;
+}
+
+const STATUS_ORDER = ['Waiting on Client', 'To Do', 'In Review', 'Done'];
+
+const nextStageLabel = computed(() => {
+    if (props.task.status === 'Waiting on Client') return 'Move to In Progress';
+    if (props.task.status === 'To Do') return 'Submit for Review';
+    return null;
+});
+
+function moveToNextStage() {
+    const currentIdx = STATUS_ORDER.indexOf(props.task.status);
+    if (currentIdx === -1 || currentIdx >= 2) return; 
+
+    const nextStatus = STATUS_ORDER[currentIdx + 1];
+    
+    router.patch(route('employee.tasks.status', props.task.id), { status: nextStatus }, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            emit('close');
+        }
     });
 }
 </script>
@@ -106,6 +137,21 @@ function formatDate(dateStr) {
                         </div>
                     </div>
 
+                    <div class="bg-gray-50 rounded-xl p-4 mb-6">
+                        <p class="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wider">{{ $t('task_progress') || 'Task Progress' }}</p>
+                        <div class="relative w-full">
+                            <div class="overflow-hidden h-2 mb-2 text-xs flex rounded-full bg-gray-200">
+                                <div :style="'width: ' + progressPercent(task.status) + '%'" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500 transition-all duration-500"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-gray-500 font-medium px-1">
+                                <span :class="{'text-indigo-600 font-bold': progressPercent(task.status) >= 5}">Pending</span>
+                                <span :class="{'text-indigo-600 font-bold': progressPercent(task.status) >= 35}">In Progress</span>
+                                <span :class="{'text-indigo-600 font-bold': progressPercent(task.status) >= 70}">Review</span>
+                                <span :class="{'text-indigo-600 font-bold': progressPercent(task.status) === 100}">Done</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Task Notes & Documents Form -->
                     <template v-if="task.status !== 'Done'">
                         <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -148,7 +194,15 @@ function formatDate(dateStr) {
                             </div>
                         </div>
 
-                        <div class="mt-4 flex gap-3">
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <button
+                                v-if="nextStageLabel"
+                                type="button"
+                                @click="moveToNextStage"
+                                class="w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shadow-sm mb-2"
+                            >
+                                {{ nextStageLabel }} &rarr;
+                            </button>
                             <button
                                 type="button"
                                 @click="$emit('close')"

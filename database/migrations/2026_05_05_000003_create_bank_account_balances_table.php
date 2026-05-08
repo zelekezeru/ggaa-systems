@@ -12,11 +12,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('bank_account_id')->constrained('bank_accounts')->cascadeOnDelete();
             $table->foreignId('monthly_ledger_id')->constrained('monthly_ledgers')->cascadeOnDelete();
-            $table->decimal('balance', 15, 2)->default(0);
-            $table->decimal('loan_amount', 15, 2)->default(0);
-            $table->decimal('lc_margin_release', 15, 2)->default(0);
-            $table->decimal('transfer_in', 15, 2)->default(0);
-            $table->decimal('transfer_reversal', 15, 2)->default(0);
+            $table->decimal('balance', 15, 2)->nullable()->default(0);
+            $table->decimal('loan_amount', 15, 2)->nullable()->default(0);
+            $table->decimal('lc_margin_release', 15, 2)->nullable()->default(0);
+            $table->decimal('transfer_in', 15, 2)->nullable()->default(0);
+            $table->decimal('transfer_reversal', 15, 2)->nullable()->default(0);
             $table->timestamps();
 
             $table->unique(['bank_account_id', 'monthly_ledger_id']);

@@ -354,13 +354,13 @@
     "delete_this_file": "ይህን ፋይል ሰርዝ?",
     "fix_errors_msg": "እባክዎን ስህተቶችን ያስተካክሉ እና እንደገና ይሞክሩ።",
     "year": "ዓመት",
+    "ledger": "ገብ",
     "financial_ledger": "የፋይናንስ ሌጀር",
     "monthly_pnl_tracking": "ለሁሉም ደንበኞች ወርሃዊ የትርፍ እና ኪሳራ ክትትል",
     "total_clients": "ጠቅላላ ደንበኞች",
     "fully_filed": "ሙሉ በሙሉ የተሞላ",
     "verified": "የተረጋገጠ",
     "submitted": "የቀረበ",
-    "draft": "ረቂቅ",
     "missing": "የጎደለ",
     "search_clients": "ደንበኞችን ይፈልጉ...",
     "client": "ደንበኛ",
@@ -544,7 +544,7 @@
     "generate_expected_payments": "የሚጠበቁ ክፍያዎችን ይፍጠሩ",
     "no_history": "ምንም ታሪክ የለም",
     "no_draft_payments_found": "ለዚህ ጊዜ ምንም የረቂቅ ክፍያዎች አልተገኙም።",
-    "draft": "ረቂቅ",
+
     "expected_payment_entry": "የሚጠበቅ የክፍያ መዝገብ",
     "expected_amount": "የሚጠበቅ መጠን",
     "all_clear": "ሁሉም ንጹህ ነው!",
@@ -559,7 +559,7 @@
     "review_record": "መዝገቡን ይገምግሙ",
     "transaction_metadata": "የግብይት ዲበ ውሂብ",
     "date": "ቀን",
-    "method": "ዘዴ",
+
     "reference": "ማጣቀሻ",
     "none": "ምንም",
     "state_reason_for_rejection": "የመቃወሚያ ምክንያት ይግለጹ...",
@@ -574,11 +574,11 @@
     "period_settlement": "የጊዜ ክፍያ አፈፃፀም",
     "amount_to_settle": "የሚከፈለው መጠን",
     "settlement_date": "የክፍያ ቀን",
-    "cheque": "ቼክ",
+
     "reference_transaction_id": "ማጣቀሻ / የግብይት መታወቂያ",
     "upload_receipt_photo": "የደረሰኝ ፎቶ ይጫኑ",
     "discard": "አስወግድ",
-    "submit_for_review": "ለግምገማ አስገባ",
+
     "digital_audit_receipt": "የዲጂታል ኦዲት ደረሰኝ",
     "no_visual_record_available": "ምንም የእይታ መዝገብ የለም",
     "save_copy": "ቅጂ አስቀምጥ"

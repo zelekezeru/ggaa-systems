@@ -23,37 +23,37 @@ return new class extends Migration
             ]);
 
             // ── SALES INCOME ──
-            $table->decimal('cash_machine_sales', 15, 2)->default(0);
-            $table->decimal('manual_sales', 15, 2)->default(0);
+            $table->decimal('cash_machine_sales', 15, 2)->nullable()->default(0);
+            $table->decimal('manual_sales', 15, 2)->nullable()->default(0);
 
             // ── COST OF GOODS SOLD ──
-            $table->decimal('beginning_inventory', 15, 2)->default(0);
-            $table->decimal('purchases', 15, 2)->default(0);
-            $table->decimal('ending_inventory', 15, 2)->default(0);
+            $table->decimal('beginning_inventory', 15, 2)->nullable()->default(0);
+            $table->decimal('purchases', 15, 2)->nullable()->default(0);
+            $table->decimal('ending_inventory', 15, 2)->nullable()->default(0);
 
             // ── ADMINISTRATION EXPENSES ──
-            $table->decimal('salary_expense', 15, 2)->default(0);
-            $table->decimal('pension_expense', 15, 2)->default(0);
-            $table->decimal('printing_expense', 15, 2)->default(0);
-            $table->decimal('shed_rent', 15, 2)->default(0);
-            $table->decimal('stationery_expense', 15, 2)->default(0);
-            $table->decimal('office_rent_expense', 15, 2)->default(0);
-            $table->decimal('transport_expense', 15, 2)->default(0);
-            $table->decimal('machine_fa_expense', 15, 2)->default(0);
-            $table->decimal('eeu_expense', 15, 2)->default(0);
-            $table->decimal('maintenance_expense', 15, 2)->default(0);
-            $table->decimal('advertising_expense', 15, 2)->default(0);
-            $table->decimal('uniform_expense', 15, 2)->default(0);
-            $table->decimal('indirect_materials_expense', 15, 2)->default(0);
-            $table->decimal('depreciation_expense', 15, 2)->default(0);
-            $table->decimal('legal_fee_expense', 15, 2)->default(0);
-            $table->decimal('bank_interest_expense', 15, 2)->default(0);
-            $table->decimal('bank_service_charge', 15, 2)->default(0);
+            $table->decimal('salary_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('pension_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('printing_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('shed_rent', 15, 2)->nullable()->default(0);
+            $table->decimal('stationery_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('office_rent_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('transport_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('machine_fa_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('eeu_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('maintenance_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('advertising_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('uniform_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('indirect_materials_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('depreciation_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('legal_fee_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('bank_interest_expense', 15, 2)->nullable()->default(0);
+            $table->decimal('bank_service_charge', 15, 2)->nullable()->default(0);
 
             // ── VAT ──
-            $table->decimal('sales_vat', 15, 2)->default(0);
-            $table->decimal('purchase_vat', 15, 2)->default(0);
-            $table->decimal('withholding_tax', 15, 2)->default(0);
+            $table->decimal('sales_vat', 15, 2)->nullable()->default(0);
+            $table->decimal('purchase_vat', 15, 2)->nullable()->default(0);
+            $table->decimal('withholding_tax', 15, 2)->nullable()->default(0);
 
             // ── WORKFLOW ──
             $table->enum('status', ['draft', 'submitted', 'verified'])->default('draft');

@@ -59,41 +59,41 @@ const emptyForm = () => ({
     eth_month: selectedMonth.value,
     status:    'draft',
 
-    cash_machine_sales:          0,
+    cash_machine_sales:          '',
     cash_machine_start_number:   null,
     cash_machine_end_number:     null,
-    manual_sales:                0,
+    manual_sales:                '',
     manual_receipt_start_number: null,
     manual_receipt_end_number:   null,
 
-    beginning_inventory:     0,
-    purchases:               0,
-    ending_inventory:        0,
+    beginning_inventory:     '',
+    purchases:               '',
+    ending_inventory:        '',
     inventory_items_start:   null,
     inventory_items_end:     null,
     inventory_sold_quantity: null,
 
-    salary_expense:             0,
-    pension_expense:            0,
-    printing_expense:           0,
-    shed_rent:                  0,
-    stationery_expense:         0,
-    office_rent_expense:        0,
-    transport_expense:          0,
-    machine_fa_expense:         0,
-    eeu_expense:                0,
-    maintenance_expense:        0,
-    advertising_expense:        0,
-    uniform_expense:            0,
-    indirect_materials_expense: 0,
-    depreciation_expense:       0,
-    legal_fee_expense:          0,
-    bank_interest_expense:      0,
-    bank_service_charge:        0,
+    salary_expense:             '',
+    pension_expense:            '',
+    printing_expense:           '',
+    shed_rent:                  '',
+    stationery_expense:         '',
+    office_rent_expense:        '',
+    transport_expense:          '',
+    machine_fa_expense:         '',
+    eeu_expense:                '',
+    maintenance_expense:        '',
+    advertising_expense:        '',
+    uniform_expense:            '',
+    indirect_materials_expense: '',
+    depreciation_expense:       '',
+    legal_fee_expense:          '',
+    bank_interest_expense:      '',
+    bank_service_charge:        '',
 
-    sales_vat:       0,
-    purchase_vat:    0,
-    withholding_tax: 0,
+    sales_vat:       '',
+    purchase_vat:    '',
+    withholding_tax: '',
 
     notes:        '',
     bank_balances: {},
@@ -222,10 +222,15 @@ function validate() {
         hasError = true;
     };
 
+    // 0. Base required fields
+    if (!form.eth_year) setError('eth_year', 'Year is required');
+    if (!form.eth_month) setError('eth_month', 'Month is required');
+
     // 1. Check for negative values on monetary fields
     const numericFields = [
         'cash_machine_sales', 'manual_sales',
         'beginning_inventory', 'purchases', 'ending_inventory',
+        'inventory_items_start', 'inventory_items_end',
         'salary_expense', 'pension_expense', 'printing_expense',
         'shed_rent', 'stationery_expense', 'office_rent_expense',
         'transport_expense', 'machine_fa_expense', 'eeu_expense',
@@ -235,25 +240,45 @@ function validate() {
         'sales_vat', 'purchase_vat', 'withholding_tax'
     ];
     numericFields.forEach(field => {
-        if (form[field] !== '' && n(form[field]) < 0) setError(field, 'Value cannot be negative');
+        const val = form[field];
+        if (val !== '' && val !== null) {
+            const num = parseFloat(val);
+            if (isNaN(num)) setError(field, 'Must be a valid number');
+            else if (num < 0) setError(field, 'Value cannot be negative');
+        }
     });
 
     // 2. Document number range validation
-    const cmStart = parseInt(form.cash_machine_start_number);
-    const cmEnd   = parseInt(form.cash_machine_end_number);
-    if (!isNaN(cmStart) && !isNaN(cmEnd) && cmEnd < cmStart)
-        setError('cash_machine_end_number', 'End # must be ≥ Start #');
+    const validateRange = (startKey, endKey) => {
+        const start = form[startKey];
+        const end = form[endKey];
+        
+        if ((start !== null && start !== '') && (end === null || end === '')) {
+            setError(endKey, 'End # is required when Start # is provided');
+        } else if ((end !== null && end !== '') && (start === null || start === '')) {
+            setError(startKey, 'Start # is required when End # is provided');
+        } else if (start !== null && start !== '' && end !== null && end !== '') {
+            const s = parseInt(start);
+            const e = parseInt(end);
+            if (isNaN(s) || s < 0) setError(startKey, 'Must be a positive integer');
+            if (isNaN(e) || e < 0) setError(endKey, 'Must be a positive integer');
+            if (!isNaN(s) && !isNaN(e) && e < s) setError(endKey, 'End # must be ≥ Start #');
+        }
+    };
 
-    const mrStart = parseInt(form.manual_receipt_start_number);
-    const mrEnd   = parseInt(form.manual_receipt_end_number);
-    if (!isNaN(mrStart) && !isNaN(mrEnd) && mrEnd < mrStart)
-        setError('manual_receipt_end_number', 'End # must be ≥ Start #');
+    validateRange('cash_machine_start_number', 'cash_machine_end_number');
+    validateRange('manual_receipt_start_number', 'manual_receipt_end_number');
 
     // 3. Inventory units sold cannot exceed available
     if (form.inventory_sold_quantity !== null && form.inventory_sold_quantity !== '') {
-        const available = n(form.inventory_items_start) + n(form.purchases);
-        if (n(form.inventory_sold_quantity) > available)
-            setError('inventory_sold_quantity', 'Sold qty cannot exceed starting units + purchases');
+        const sold = parseFloat(form.inventory_sold_quantity);
+        if (isNaN(sold) || sold < 0) {
+            setError('inventory_sold_quantity', 'Must be a positive number');
+        } else {
+            const available = n(form.inventory_items_start) + n(form.purchases);
+            if (sold > available)
+                setError('inventory_sold_quantity', 'Sold qty cannot exceed starting units + purchases');
+        }
     }
 
     // 4. If submitting, ensure at least some income or expense is recorded
@@ -723,7 +748,7 @@ const statusBadge = computed(() => {
                             {{ form.processing ? t('saving') : t('save_draft') }}
                         </button>
                         <button
-                            type="button"
+                        type="button"
                             :disabled="form.processing"
                             @click="save('submitted')"
                             class="px-5 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"

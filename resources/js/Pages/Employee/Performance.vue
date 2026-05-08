@@ -210,22 +210,22 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
             <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-sm">
                 <div class="flex items-center justify-between mb-6">
                     <div>
-                        <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Achievements</h2>
+                        <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">{{ t('achievements') || 'Achievements' }}</h2>
                         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                            {{ earnedAchievements.length }} earned · {{ totalAchievementPoints }} pts ·
-                            {{ lockedAchievements.length }} to go
+                            {{ earnedAchievements.length }} {{ t('earned_lc') || 'earned' }} · {{ totalAchievementPoints }} {{ t('pts') || 'pts' }} ·
+                            {{ lockedAchievements.length }} {{ t('to_go') || 'to go' }}
                         </p>
                     </div>
                     <div v-if="earnedAchievements.length" class="text-4xl">🏆</div>
                 </div>
 
                 <div v-if="earnedAchievements.length === 0 && lockedAchievements.length === 0" class="text-center text-slate-400 py-8">
-                    No achievements configured yet.
+                    {{ t('no_achievements') || 'No achievements configured yet.' }}
                 </div>
 
                 <!-- Earned -->
                 <div v-if="earnedAchievements.length" class="mb-6">
-                    <h3 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">Earned</h3>
+                    <h3 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">{{ t('earned') || 'Earned' }}</h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                         <div
                             v-for="a in earnedAchievements"
@@ -237,7 +237,7 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
                             <p class="font-bold text-sm" :class="tierStyle(a.tier).text">{{ a.name }}</p>
                             <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{{ a.description }}</p>
                             <p class="text-[10px] uppercase tracking-wider mt-2 font-bold" :class="tierStyle(a.tier).text">
-                                {{ a.tier }} · +{{ a.points }} pts
+                                {{ t(a.tier) || a.tier }} · +{{ a.points }} {{ t('pts') || 'pts' }}
                             </p>
                         </div>
                     </div>
@@ -245,7 +245,7 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
 
                 <!-- Locked -->
                 <div v-if="lockedAchievements.length">
-                    <h3 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">Locked</h3>
+                    <h3 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-3">{{ t('locked') || 'Locked' }}</h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                         <div
                             v-for="a in lockedAchievements"
@@ -257,7 +257,7 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
                             <p class="font-bold text-sm text-slate-600 dark:text-slate-300">{{ a.name }}</p>
                             <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">{{ a.description }}</p>
                             <p class="text-[10px] uppercase tracking-wider mt-2 font-bold text-slate-400">
-                                {{ a.tier }} · {{ a.points }} pts
+                                {{ t(a.tier) || a.tier }} · {{ a.points }} {{ t('pts') || 'pts' }}
                             </p>
                         </div>
                     </div>
@@ -268,8 +268,8 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
             <div v-if="leaderboard.length" class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-sm">
                 <div class="flex items-center justify-between mb-6">
                     <div>
-                        <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Branch Leaderboard</h2>
-                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Friendly competition · ranked by achievement points and on-time score</p>
+                        <h2 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">{{ t('branch_leaderboard') || 'Branch Leaderboard' }}</h2>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ t('friendly_competition') || 'Friendly competition · ranked by achievement points and on-time score' }}</p>
                     </div>
                     <FireIcon class="h-8 w-8 text-orange-500" />
                 </div>
@@ -295,15 +295,15 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
                         <div class="flex-1 min-w-0">
                             <p class="font-bold text-slate-900 dark:text-white truncate">
                                 {{ u.name }}
-                                <span v-if="u.is_self" class="ml-2 text-xs uppercase tracking-wider font-semibold text-indigo-600 dark:text-indigo-400">You</span>
+                                <span v-if="u.is_self" class="ml-2 text-xs uppercase tracking-wider font-semibold text-indigo-600 dark:text-indigo-400">{{ t('you') || 'You' }}</span>
                             </p>
                             <p class="text-xs text-slate-500 dark:text-slate-400">
-                                {{ u.achievement_count }} achievements · Score {{ u.monthly_score }}
+                                {{ u.achievement_count }} {{ t('achievements_lc') || 'achievements' }} · {{ t('score') || 'Score' }} {{ u.monthly_score }}
                             </p>
                         </div>
                         <div class="text-right">
                             <p class="text-2xl font-black text-slate-900 dark:text-white">{{ u.achievement_points }}</p>
-                            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">points</p>
+                            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{{ t('points_lc') || 'points' }}</p>
                         </div>
                     </li>
                 </ul>

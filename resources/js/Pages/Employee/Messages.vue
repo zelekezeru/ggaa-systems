@@ -3,6 +3,7 @@ import { Head, router, usePage } from '@inertiajs/vue3';
 import EmployeeLayout from '@/Layouts/EmployeeLayout.vue';
 import { PaperClipIcon, PaperAirplaneIcon, ArrowLeftIcon, ChatBubbleLeftRightIcon } from '@heroicons/vue/24/outline';
 import { ref, nextTick, onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
     messages:        Array,
@@ -12,6 +13,7 @@ const props = defineProps({
 
 const page = usePage();
 const myId = computed(() => page.props.auth.user?.id);
+const { t } = useI18n({ useScope: 'global' });
 
 // ── Compose state ─────────────────────────────────────────────────────────────
 const body       = ref('');
@@ -80,7 +82,7 @@ const switchClient = (clientId) => {
             <!-- ── Sidebar: Assigned Clients ── -->
             <div class="hidden lg:flex flex-col w-64 border-r border-gray-200 bg-white shrink-0">
                 <div class="px-4 py-4 border-b border-gray-100">
-                    <h2 class="text-sm font-bold text-gray-900">Client Threads</h2>
+                    <h2 class="text-sm font-bold text-gray-900">{{ t('client_threads') || 'Client Threads' }}</h2>
                 </div>
                 <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
                     <button
@@ -99,7 +101,7 @@ const switchClient = (clientId) => {
                     </button>
 
                     <div v-if="!assignedClients.length" class="px-4 py-6 text-center text-xs text-gray-400">
-                        No clients assigned
+                        {{ t('no_clients_assigned') || 'No clients assigned' }}
                     </div>
                 </div>
             </div>
@@ -117,7 +119,7 @@ const switchClient = (clientId) => {
                     </div>
                     <div>
                         <h1 class="text-sm font-bold text-gray-900">{{ client.company_name }}</h1>
-                        <p class="text-xs text-gray-500">Client conversation thread</p>
+                        <p class="text-xs text-gray-500">{{ t('client_conversation_thread') || 'Client conversation thread' }}</p>
                     </div>
                 </div>
 
@@ -130,7 +132,7 @@ const switchClient = (clientId) => {
                         <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4">
                             <ChatBubbleLeftRightIcon class="h-8 w-8 text-blue-400" />
                         </div>
-                        <p class="text-gray-500 text-sm">No messages yet. Send the first message to this client.</p>
+                        <p class="text-gray-500 text-sm">{{ t('no_messages_yet') || 'No messages yet. Send the first message to this client.' }}</p>
                     </div>
 
                     <div
@@ -147,7 +149,7 @@ const switchClient = (clientId) => {
                         </div>
 
                         <div class="max-w-[70%] space-y-1">
-                            <p v-if="!message.is_mine" class="text-xs text-gray-500 ml-1">{{ message.sender?.name ?? 'Client' }}</p>
+                            <p v-if="!message.is_mine" class="text-xs text-gray-500 ml-1">{{ message.sender?.name ?? (t('client') || 'Client') }}</p>
 
                             <div
                                 class="px-4 py-2.5 rounded-2xl text-sm leading-relaxed"
@@ -164,7 +166,7 @@ const switchClient = (clientId) => {
                                         :class="message.is_mine ? 'text-blue-200' : 'text-blue-600'"
                                     >
                                         <PaperClipIcon class="h-3.5 w-3.5" />
-                                        View attachment
+                                        {{ t('view_attachment') || 'View attachment' }}
                                     </a>
                                 </div>
                             </div>
@@ -189,12 +191,12 @@ const switchClient = (clientId) => {
                             v-model="body"
                             @keydown="onKeydown"
                             rows="2"
-                            :placeholder="`Reply to ${client.company_name}… (Enter to send)`"
+                            :placeholder="t('reply_to', { company: client.company_name }) || `Reply to ${client.company_name}… (Enter to send)`"
                             class="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
 
                         <div class="flex flex-col gap-1.5 pb-0.5">
-                            <button @click="pickFile" type="button" class="rounded-full p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="Attach file">
+                            <button @click="pickFile" type="button" class="rounded-full p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" :title="t('attach_file') || 'Attach file'">
                                 <PaperClipIcon class="h-5 w-5" />
                             </button>
                             <input ref="fileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx" class="hidden" @change="onFileChange" />
@@ -203,7 +205,7 @@ const switchClient = (clientId) => {
                                 @click="send"
                                 :disabled="sending || (!body.trim() && !attachment)"
                                 class="rounded-full p-2 bg-blue-900 text-white hover:bg-blue-800 disabled:opacity-40 transition-colors"
-                                title="Send"
+                                :title="t('send') || 'Send'"
                             >
                                 <PaperAirplaneIcon class="h-5 w-5" />
                             </button>
