@@ -125,16 +125,20 @@ class StaffController extends Controller
         abort_unless(auth()->user()->can('edit-user'), 403, 'Unauthorized access.');
 
         $validated = $request->validate([
-            'name'              => 'required|string|max:255',
-            'email'             => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($staff->id)],
-            'branch_id'         => 'required|exists:branches,id',
-            'service_type_ids'  => 'nullable|array',
-            'service_type_ids.*' => 'exists:service_types,id',
-            'profile_photo'     => 'nullable|image|max:10000',
-            'position'          => 'nullable|in:' . implode(',', array_keys(StaffUser::POSITIONS)),
-            'position_title'    => 'nullable|string|max:255',
-            'employment_type'   => 'nullable|in:full_time,part_time,contract',
-            'is_active'         => 'nullable|boolean',
+            'name'                   => 'required|string|max:255',
+            'email'                  => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($staff->id)],
+            'branch_id'              => 'required|exists:branches,id',
+            'service_type_ids'       => 'nullable|array',
+            'service_type_ids.*'     => 'exists:service_types,id',
+            'profile_photo'          => 'nullable|image|max:10000',
+            'position'               => 'nullable|in:' . implode(',', array_keys(StaffUser::POSITIONS)),
+            'position_title'         => 'nullable|string|max:255',
+            'employment_type'        => 'nullable|in:full_time,part_time,contract',
+            'is_active'              => 'nullable|boolean',
+            'max_capacity'           => 'nullable|integer|min:1|max:100',
+            'academic_experience'    => 'nullable|string',
+            'training_experience'    => 'nullable|string',
+            'performance_experience' => 'nullable|string',
         ]);
 
         if ($request->hasFile('profile_photo')) {
@@ -153,15 +157,19 @@ class StaffController extends Controller
             $staff->serviceTypes()->sync($request->input('service_type_ids', []));
         }
 
-        if ($staff->staffProfile && $request->filled('position')) {
+        if ($staff->staffProfile) {
             $oldRole = self::POSITION_TO_ROLE[$staff->staffProfile->position] ?? null;
-            $newRole = self::POSITION_TO_ROLE[$validated['position']] ?? 'Employee';
+            $newRole = self::POSITION_TO_ROLE[$validated['position'] ?? $staff->staffProfile->position] ?? 'Employee';
 
             $staff->staffProfile->update([
-                'position'        => $validated['position'],
-                'position_title'  => $validated['position_title'] ?? $staff->staffProfile->position_title,
-                'employment_type' => $validated['employment_type'] ?? $staff->staffProfile->employment_type,
-                'is_active'       => $validated['is_active'] ?? $staff->staffProfile->is_active,
+                'position'               => $validated['position'] ?? $staff->staffProfile->position,
+                'position_title'         => $validated['position_title'] ?? $staff->staffProfile->position_title,
+                'employment_type'        => $validated['employment_type'] ?? $staff->staffProfile->employment_type,
+                'is_active'              => $validated['is_active'] ?? $staff->staffProfile->is_active,
+                'max_capacity'           => $validated['max_capacity'] ?? $staff->staffProfile->max_capacity,
+                'academic_experience'    => $validated['academic_experience'] ?? $staff->staffProfile->academic_experience,
+                'training_experience'    => $validated['training_experience'] ?? $staff->staffProfile->training_experience,
+                'performance_experience' => $validated['performance_experience'] ?? $staff->staffProfile->performance_experience,
             ]);
 
             if ($oldRole !== $newRole) {
@@ -206,5 +214,43 @@ class StaffController extends Controller
         $staff->delete();
 
         return back()->with('success', 'Staff member removed from the system.');
+    }
+
+    public function show(User $staff)
+    {
+        abort_unless(auth()->user()->hasAnyRole(['Super Admin', 'Branch Manager']), 403, 'Unauthorized access.');
+
+        $staff->load(['branch', 'serviceTypes', 'staffProfile', 'roles']);
+
+        // Current workload metrics
+        $staff->capacity_points = $staff->getCurrentCapacityLoad();
+        $staff->max_capacity_limit = $staff->staffProfile->max_capacity ?? (int) config('workforce.max_capacity');
+        $staff->capacity_percent = $staff->capacity_percent;
+        $staff->remaining_capacity = $staff->remaining_capacity;
+
+        // Fetch performance score for current and previous month
+        $currentMonthPerformance = $staff->getWeightedPerformanceScore(now()->month, now()->year);
+        $prevMonthPerformance = $staff->getWeightedPerformanceScore(now()->subMonth()->month, now()->subMonth()->year);
+
+        // Fetch assigned Tasks
+        $tasks = \App\Models\Task::with(['client', 'template'])
+            ->where('assigned_user_id', $staff->id)
+            ->latest()
+            ->get();
+
+        $branches = Branch::where('is_active', true)->get(['id', 'name']);
+        $serviceTypes = ServiceType::where('is_active', true)->get(['id', 'name']);
+
+        return Inertia::render('SuperAdmin/StaffShow', [
+            'staff' => $staff,
+            'tasks' => $tasks,
+            'branches' => $branches,
+            'serviceTypes' => $serviceTypes,
+            'positions' => StaffUser::POSITIONS,
+            'performance' => [
+                'current_month' => $currentMonthPerformance,
+                'previous_month' => $prevMonthPerformance,
+            ]
+        ]);
     }
 }

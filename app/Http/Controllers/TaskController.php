@@ -92,4 +92,24 @@ class TaskController extends Controller
 
         return back()->with('success', 'Document submitted. Task moved to In Review.');
     }
+
+    /**
+     * Securely download task report documents.
+     * Integrates with the Task model's global scope to enforce tenant/role access.
+     */
+    public function downloadDocument(Request $request, Task $task)
+    {
+        $path = $request->query('path');
+
+        $existingPaths = is_array($task->document_path) ? $task->document_path : [];
+        if (!in_array($path, $existingPaths, true)) {
+            abort(404, 'File not found in task attachments.');
+        }
+
+        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            abort(404, 'File does not exist on disk.');
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('local')->download($path, basename($path));
+    }
 }

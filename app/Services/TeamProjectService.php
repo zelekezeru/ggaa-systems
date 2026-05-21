@@ -17,8 +17,11 @@ use Illuminate\Support\Facades\Notification;
  */
 class TeamProjectService
 {
-    public function getMaxCapacity(): int
+    public function getMaxCapacity(?User $user = null): int
     {
+        if ($user && $user->staffProfile && !is_null($user->staffProfile->max_capacity)) {
+            return (int) $user->staffProfile->max_capacity;
+        }
         return (int) config('workforce.max_capacity');
     }
 
@@ -172,7 +175,7 @@ class TeamProjectService
     private function assertCanAccept(User $user, int $additionalShare): void
     {
         $currentLoad = $user->getCurrentCapacityLoad();
-        $max         = $this->getMaxCapacity();
+        $max         = $this->getMaxCapacity($user);
 
         if (($currentLoad + $additionalShare) > $max) {
             throw new CapacityThresholdExceededException($currentLoad, $additionalShare, $max);

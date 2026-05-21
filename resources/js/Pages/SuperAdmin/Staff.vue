@@ -191,6 +191,7 @@ const getCapacityColor = (percentage) => {
                 <GridCard v-for="employee in filteredStaff" :key="employee.id" class="p-6">
                     <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         <RowActions
+                            @show="$inertia.get(route('super-admin.staff.show', employee.id))"
                             @edit="openModal(employee)"
                             @delete="confirmDelete(employee)"
                         />
@@ -202,7 +203,9 @@ const getCapacityColor = (percentage) => {
                             <span v-else>{{ employee.name.charAt(0) }}</span>
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-gray-900 dark:text-white truncate">{{ employee.name }}</h3>
+                            <Link :href="route('super-admin.staff.show', employee.id)" class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white truncate">{{ employee.name }}</h3>
+                            </Link>
                             <p class="text-[11px] text-gray-500 dark:text-slate-400 truncate uppercase font-bold">{{ employee.email }}</p>
                         </div>
                     </div>
@@ -232,7 +235,7 @@ const getCapacityColor = (percentage) => {
                             </div>
                         </div>
                     </div>
-
+ 
                     <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 flex justify-between items-center">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-tight">{{ $t('active_clients') }}</span>
                         <span class="inline-flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 h-6 px-2.5 rounded-full text-xs font-bold ring-1 ring-inset ring-blue-600/20">
@@ -244,7 +247,7 @@ const getCapacityColor = (percentage) => {
                     {{ $t('no_employees') }}
                 </div>
             </GridContainer>
-
+ 
             <div v-else>
                 <Table>
                     <TableHead>
@@ -266,7 +269,9 @@ const getCapacityColor = (percentage) => {
                                         <span v-else>{{ employee.name.charAt(0) }}</span>
                                     </div>
                                     <div class="ml-4">
-                                        <div class="font-bold text-gray-900 dark:text-white">{{ employee.name }}</div>
+                                        <Link :href="route('super-admin.staff.show', employee.id)" class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                            <div class="font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{{ employee.name }}</div>
+                                        </Link>
                                         <div class="text-[11px] text-gray-500 dark:text-slate-400 font-bold uppercase tracking-tighter">{{ employee.email }}</div>
                                     </div>
                                 </div>
@@ -299,6 +304,7 @@ const getCapacityColor = (percentage) => {
                             </TableDataCell>
                             <TableDataCell class="pr-4 sm:pr-6 text-right">
                                 <RowActions
+                                    @show="$inertia.get(route('super-admin.staff.show', employee.id))"
                                     @edit="openModal(employee)"
                                     @delete="confirmDelete(employee)"
                                 />

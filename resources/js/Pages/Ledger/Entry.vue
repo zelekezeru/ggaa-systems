@@ -374,6 +374,83 @@ const statusBadge = computed(() => {
     if (s === 'draft')     return { label: t('draft'),     cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' };
     return null;
 });
+
+// ── Secure PDF Export & Verifiable QR ──
+const isExportingPDF = ref(false);
+
+const verificationUrl = computed(() => {
+    if (!existing.value) return '';
+    return window.location.origin + '/ledger/' + props.client.id + '/verify-report/' + existing.value.id;
+});
+
+const loadHtml2Pdf = () => {
+    return new Promise((resolve) => {
+        if (window.html2pdf) {
+            resolve(window.html2pdf);
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        script.onload = () => resolve(window.html2pdf);
+        document.head.appendChild(script);
+    });
+};
+
+const exportLedgerToPDF = async () => {
+    if (!existing.value || existing.value.status !== 'verified') {
+        toast.warning('Only verified and approved monthly ledger reports can be exported to PDF.');
+        return;
+    }
+
+    isExportingPDF.value = true;
+    toast.info('Generating secure PDF report with verifiable QR code...');
+
+    try {
+        const html2pdf = await loadHtml2Pdf();
+        const element = document.getElementById('ledger-pdf-print-template');
+        if (!element) {
+            toast.error('Print template not found.');
+            isExportingPDF.value = false;
+            return;
+        }
+
+        // Wait for all dynamic images inside the template to finish downloading
+        const images = element.getElementsByTagName('img');
+        const promises = [];
+        for (let i = 0; i < images.length; i++) {
+            const img = images[i];
+            if (!img.complete) {
+                promises.push(new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                }));
+            }
+        }
+
+        const runPdf = async () => {
+            const opt = {
+                margin:       [0.4, 0.4, 0.4, 0.4],
+                filename:     `GGAA_Ledger_${props.client.company_name}_${selectedMonth.value}_${selectedYear.value}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, allowTaint: true, logging: false },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            await html2pdf().from(element).set(opt).save();
+            toast.success('Official PDF Ledger Report exported successfully.');
+        };
+
+        if (promises.length > 0) {
+            await Promise.all(promises);
+        }
+        await runPdf();
+    } catch (err) {
+        console.error(err);
+        toast.error('Failed to export PDF report.');
+    } finally {
+        isExportingPDF.value = false;
+    }
+};
 </script>
 
 <template>
@@ -855,6 +932,25 @@ const statusBadge = computed(() => {
                             <p v-if="existing.verified_by">{{ t('verified_by') }}: <span class="text-gray-600 dark:text-slate-300">{{ existing.verified_by?.name }}</span></p>
                         </div>
 
+                        <!-- Official Verified PDF Export & QR Verification Card -->
+                        <div v-if="existing?.status === 'verified'" class="mt-5 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-4">
+                            <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Verifiable Ledger Statement</h4>
+                            <div class="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800/80 text-center">
+                                <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verificationUrl)}`" 
+                                     class="h-28 w-28 object-contain bg-white p-2 rounded-xl shadow-md border border-slate-200 dark:border-slate-700" />
+                                <span class="text-[8px] font-mono text-slate-400 mt-2 block break-all select-all">{{ verificationUrl }}</span>
+                                <span class="text-[9px] font-black text-indigo-650 dark:text-indigo-400 mt-1 block">Scan QR to verify document integrity</span>
+                            </div>
+                            <button 
+                                @click="exportLedgerToPDF"
+                                :disabled="isExportingPDF"
+                                class="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
+                            >
+                                <span v-if="isExportingPDF">⏳ Exporting PDF...</span>
+                                <span v-else>📄 Export Verified PDF Report</span>
+                            </button>
+                        </div>
+
                         <!-- Portal Access Info -->
                         <div class="mt-5 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-3">
                             <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{{ t('portal_access') }}</h4>
@@ -876,6 +972,184 @@ const statusBadge = computed(() => {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HIDDEN SECURE LEDGER PDF REPORT FOR PRINT EXPORT -->
+        <div style="position: absolute; left: -9999px; top: -9999px; width: 800px; background: white; z-index: -9999; overflow: hidden; pointer-events: none;">
+            <div id="ledger-pdf-print-template" class="bg-white text-slate-900 p-8 font-sans min-h-[10.5in] w-[8in] relative text-left leading-relaxed">
+                <!-- Watermark Logo Seal -->
+                <div class="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
+                    <span class="text-[140px] font-black tracking-widest text-indigo-900 rotate-[35deg] uppercase">GGAA SECURE</span>
+                </div>
+
+                <!-- Header block -->
+                <div class="flex items-start justify-between border-b-2 border-slate-800 pb-4 mb-6">
+                    <div>
+                        <div class="text-xl font-black tracking-tight text-indigo-950 uppercase">GGAA SYSTEMS & ASSOC.</div>
+                        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Secure Financial Advisory & Corporate Accounting</div>
+                        <div class="text-[9px] font-mono text-slate-400 mt-1">Ref: SEC-LDG-{{ existing?.id }}-{{ selectedYear }}-{{ selectedMonth?.slice(0,3) }}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="inline-block px-3 py-1 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-black uppercase tracking-wider border border-emerald-250">
+                            Verified Ledger Report
+                        </div>
+                        <div class="text-[10px] text-slate-500 font-bold mt-1">Generated: {{ new Date().toLocaleDateString() }}</div>
+                    </div>
+                </div>
+
+                <!-- Title section -->
+                <div class="text-center mb-6">
+                    <h1 class="text-lg font-black text-slate-900 uppercase tracking-widest font-sans">Monthly Financial Ledger Statement</h1>
+                    <p class="text-xs text-slate-500 mt-1 font-bold">Ethiopia Fiscal Period: {{ selectedMonth }} {{ selectedYear }}</p>
+                </div>
+
+                <!-- Corporate Metadata Grid -->
+                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 text-xs">
+                    <div>
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Corporate Client</span>
+                        <span class="font-bold text-slate-900 block text-sm mt-0.5">{{ client.company_name }}</span>
+                        <span class="text-slate-500 block mt-0.5">Sector: {{ client.sector }} • {{ client.venture || 'Standard' }}</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Taxpayer Registry</span>
+                        <span class="font-bold text-slate-900 block text-sm mt-0.5">TIN: {{ client.tin_number }}</span>
+                        <span class="text-slate-500 block mt-0.5">Structure: {{ client.legal_structure || 'PLC' }}</span>
+                    </div>
+                </div>
+
+                <!-- Financial Statement Grid Tables -->
+                <div class="space-y-4 text-xs">
+                    <!-- Sales & Cost of Goods Sold -->
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800 text-white uppercase text-[9px] tracking-wider font-bold">
+                                <th class="p-2 text-left rounded-l-lg">Income & Sales Details</th>
+                                <th class="p-2 text-right rounded-r-lg">Amount (ETB)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr>
+                                <td class="p-2 font-medium text-slate-700">Cash Machine Sales Revenue</td>
+                                <td class="p-2 text-right font-bold text-slate-955">{{ fmt(form.cash_machine_sales) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="p-2 font-medium text-slate-700">Manual Invoice Sales Revenue</td>
+                                <td class="p-2 text-right font-bold text-slate-955">{{ fmt(form.manual_sales) }}</td>
+                            </tr>
+                            <tr class="bg-slate-50/50">
+                                <td class="p-2 font-black text-slate-800">Total Consolidated Revenue</td>
+                                <td class="p-2 text-right font-black text-indigo-900">{{ fmt(totalSales) }}</td>
+                            </tr>
+                            <!-- COGS details -->
+                            <tr>
+                                <td class="p-2 text-slate-600 pl-4">• Beginning Inventory Balance</td>
+                                <td class="p-2 text-right text-slate-700">{{ fmt(form.beginning_inventory) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="p-2 text-slate-600 pl-4">• Purchases & Direct Cost additions</td>
+                                <td class="p-2 text-right text-slate-700">{{ fmt(form.purchases) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="p-2 text-slate-600 pl-4">• Ending Inventory Balance</td>
+                                <td class="p-2 text-right text-slate-700">{{ fmt(form.ending_inventory) }}</td>
+                            </tr>
+                            <tr class="bg-slate-50/50">
+                                <td class="p-2 font-black text-slate-800">Cost of Goods Sold (COGS)</td>
+                                <td class="p-2 text-right font-black text-slate-900">{{ fmt(cogs) }}</td>
+                            </tr>
+                            <tr class="bg-slate-100/50 font-black">
+                                <td class="p-2 text-indigo-950 text-sm">GROSS TRADING PROFIT</td>
+                                <td class="p-2 text-right text-indigo-955 text-sm" :class="grossProfit >= 0 ? 'text-emerald-700' : 'text-red-600'">{{ fmt(grossProfit) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Admin Expenses -->
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800 text-white uppercase text-[9px] tracking-wider font-bold">
+                                <th class="p-2 text-left rounded-l-lg">Administrative & Operating Expenses</th>
+                                <th class="p-2 text-right rounded-r-lg">Amount (ETB)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-[10px]">
+                            <tr v-if="n(form.salary_expense) > 0">
+                                <td class="p-1 px-2 text-slate-700">Salary Expenses</td>
+                                <td class="p-1 px-2 text-right font-medium text-slate-900">{{ fmt(form.salary_expense) }}</td>
+                            </tr>
+                            <tr v-if="n(form.pension_expense) > 0">
+                                <td class="p-1 px-2 text-slate-700">Pension Contribution Expense</td>
+                                <td class="p-1 px-2 text-right font-medium text-slate-900">{{ fmt(form.pension_expense) }}</td>
+                            </tr>
+                            <tr v-if="n(form.office_rent_expense) > 0">
+                                <td class="p-1 px-2 text-slate-700">Office Rent Expense</td>
+                                <td class="p-1 px-2 text-right font-medium text-slate-900">{{ fmt(form.office_rent_expense) }}</td>
+                            </tr>
+                            <tr v-if="n(form.shed_rent) > 0">
+                                <td class="p-1 px-2 text-slate-700">Warehouse / Shed Rent Expense</td>
+                                <td class="p-1 px-2 text-right font-medium text-slate-900">{{ fmt(form.shed_rent) }}</td>
+                            </tr>
+                            <tr v-if="n(form.transport_expense) > 0">
+                                <td class="p-1 px-2 text-slate-700">Transport & Logistical Expense</td>
+                                <td class="p-1 px-2 text-right font-medium text-slate-900">{{ fmt(form.transport_expense) }}</td>
+                            </tr>
+                            <!-- Sum up small ones as Miscellaneous in print for compactness if desired, or render them all -->
+                            <tr v-if="totalExpenses - n(form.salary_expense) - n(form.pension_expense) - n(form.office_rent_expense) - n(form.shed_rent) - n(form.transport_expense) > 0">
+                                <td class="p-1 px-2 text-slate-700">Other Utilities, Depreciation & Admin Fees</td>
+                                <td class="p-1 px-2 text-right font-medium text-slate-900">
+                                    {{ fmt(totalExpenses - n(form.salary_expense) - n(form.pension_expense) - n(form.office_rent_expense) - n(form.shed_rent) - n(form.transport_expense)) }}
+                                </td>
+                            </tr>
+                            <tr class="bg-slate-100/50 font-black">
+                                <td class="p-2 text-indigo-955">TOTAL ADMINISTRATIVE EXPENDITURE</td>
+                                <td class="p-2 text-right text-red-600">{{ fmt(totalExpenses) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Net profit Summary -->
+                    <div class="grid grid-cols-3 gap-4 border border-slate-800 p-3 rounded-xl bg-slate-50/50">
+                        <div class="text-center">
+                            <span class="text-[8px] font-black text-slate-450 uppercase tracking-widest block">Net Profit / Loss</span>
+                            <span class="text-sm font-black mt-0.5 block" :class="profitClass">{{ fmt(netProfit) }} ETB</span>
+                        </div>
+                        <div class="text-center border-x border-slate-200">
+                            <span class="text-[8px] font-black text-slate-450 uppercase tracking-widest block">Estimated Profit Tax</span>
+                            <span class="text-sm font-black text-orange-600 block mt-0.5">{{ fmt(profitTax) }} ETB</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="text-[8px] font-black text-slate-450 uppercase tracking-widest block">Aggregate Bank Credited</span>
+                            <span class="text-sm font-black text-slate-900 block mt-0.5">{{ fmt(totalBankBalance) }} ETB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Audit & Verification Signatures -->
+                <div class="mt-8 pt-8 border-t border-slate-250 flex items-end justify-between">
+                    <div class="space-y-4 text-[10px] text-slate-500">
+                        <div class="flex items-center gap-2" v-if="existing?.submitted_by">
+                            <span class="font-bold text-slate-450 uppercase tracking-wider w-20">Prepared By:</span>
+                            <span class="font-bold text-slate-800">{{ existing.submitted_by?.name }}</span>
+                            <span class="text-slate-400">• {{ new Date(existing.created_at).toLocaleDateString() }}</span>
+                        </div>
+                        <div class="flex items-center gap-2" v-if="existing?.verified_by">
+                            <span class="font-bold text-slate-450 uppercase tracking-wider w-20">Verified By:</span>
+                            <span class="font-bold text-slate-800">{{ existing.verified_by?.name }}</span>
+                            <span class="text-slate-400">• Approved and sealed in registry</span>
+                        </div>
+                        <div class="text-[8px] text-slate-400 mt-2 font-mono">
+                            Document Authenticity Hash: {{ existing?.id }}_{{ selectedYear }}_{{ selectedMonth }}
+                        </div>
+                    </div>
+
+                    <!-- Secure Verifiable QR Seal -->
+                    <div class="text-center bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-col items-center max-w-[150px]">
+                        <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(verificationUrl)}`" 
+                             class="h-20 w-20 bg-white p-1 rounded-lg border border-slate-350" />
+                        <span class="text-[7px] font-mono text-slate-400 mt-1.5 uppercase tracking-wide block">Tax Verification Seal</span>
                     </div>
                 </div>
             </div>

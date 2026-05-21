@@ -91,6 +91,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/tasks/{task}/comments', [TaskCommentController::class, 'index'])->name('tasks.comments.index');
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
     Route::delete('/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy'])->name('tasks.comments.destroy');
+
+    // Secure Task report downloads
+    Route::get('/tasks/{task}/documents/download', [TaskController::class, 'downloadDocument'])->name('tasks.documents.download');
 });
 
 // --- CLIENT PORTAL ---
@@ -122,11 +125,26 @@ Route::middleware(['auth', 'role:Super Admin|Branch Manager'])->group(function (
     Route::delete('/super-admin/staff/{staff}', [StaffController::class, 'destroy'])->name('admin.staff.destroy');
     Route::post('/super-admin/staff/{staff}/reset-password', [StaffController::class, 'resetPassword'])->name('admin.staff.reset-password');
 
+    Route::get('/super-admin/documents', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'index'])->name('super-admin.documents');
+    Route::post('/super-admin/documents', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'storeDocument'])->name('admin.documents.store');
+    Route::post('/super-admin/documents/place', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'placeDocument'])->name('admin.documents.place');
+    Route::post('/super-admin/documents/{document}/update', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'updateDocument'])->name('admin.documents.update');
+    Route::post('/super-admin/documents/{document}/retrieve', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'retrieveDocument'])->name('admin.documents.retrieve');
+    Route::post('/super-admin/documents/types', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'storeType'])->name('admin.documents.types.store');
+    Route::post('/super-admin/shelves', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'storeShelf'])->name('admin.shelves.store');
+    Route::post('/super-admin/shelves/{shelf}/update', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'updateShelf'])->name('admin.shelves.update');
+
     // Client CRUD operations
+    Route::get('/super-admin/clients/{client}', [\App\Http\Controllers\AdminClientController::class, 'show'])->name('super-admin.clients.show');
     Route::post('/super-admin/clients', [AdminClientController::class, 'store'])->name('admin.clients.store');
     Route::put('/super-admin/clients/{client}', [AdminClientController::class, 'update'])->name('admin.clients.update');
     Route::delete('/super-admin/clients/{client}', [AdminClientController::class, 'destroy'])->name('admin.clients.destroy');
     Route::post('/super-admin/clients/{client}/reset-password', [AdminClientController::class, 'resetPassword'])->name('admin.clients.reset-password');
+    Route::post('/super-admin/clients/{client}/reveal-etrade', [AdminClientController::class, 'revealEtradePassword'])->name('admin.clients.reveal-etrade');
+    Route::post('/super-admin/legal-structures', [AdminClientController::class, 'storeLegalStructure'])->name('admin.legal-structures.store');
+
+    // Staff show page
+    Route::get('/super-admin/staff/{staff}', [\App\Http\Controllers\StaffController::class, 'show'])->name('super-admin.staff.show');
 
     // Service Type CRUD
     Route::get('/super-admin/service-types', [ServiceTypeController::class, 'index'])->name('super-admin.service-types');

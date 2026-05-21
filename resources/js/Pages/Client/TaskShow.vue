@@ -126,7 +126,9 @@ const uploadFiles = () => {
                         </h3>
                         <div v-if="task.document_path && task.document_path.length" class="space-y-2">
                             <div v-for="(file, index) in task.document_path" :key="index" class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-xs border border-slate-100 dark:border-slate-700">
-                                <span class="truncate flex-1 font-medium text-slate-700 dark:text-slate-300">{{ file.split('/').pop() }}</span>
+                                <a :href="route('tasks.documents.download', { task: task.id, path: file })" target="_blank" class="truncate flex-1 font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
+                                    {{ file.split('/').pop() }}
+                                </a>
                                 <CheckCircleIcon class="h-4 w-4 text-green-500 ml-2" />
                             </div>
                         </div>

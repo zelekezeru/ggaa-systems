@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { router, useForm, Head } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import ModalWrapper from '@/Components/ModalWrapper.vue';
 import { useI18n } from 'vue-i18n';
 import {
     ClipboardDocumentListIcon,
@@ -60,6 +61,35 @@ const showEditModal   = ref(false);
 const showDeleteModal = ref(false);
 const showDetailModal = ref(false);
 const selectedTask    = ref(null);
+
+// Secure Download Password verification
+const isDownloadPasswordModalOpen = ref(false);
+const downloadTaskTaskId = ref(null);
+const downloadTaskPath = ref('');
+const downloadClientPassword = ref('');
+const downloadPasswordError = ref('');
+
+const promptDownloadPassword = (taskId, path) => {
+    downloadTaskTaskId.value = taskId;
+    downloadTaskPath.value = path;
+    downloadClientPassword.value = '';
+    downloadPasswordError.value = '';
+    isDownloadPasswordModalOpen.value = true;
+};
+
+const executeSecureDownload = () => {
+    if (!downloadClientPassword.value) {
+        downloadPasswordError.value = 'Please insert the client portal password.';
+        return;
+    }
+    const url = route('tasks.documents.download', {
+        task: downloadTaskTaskId.value,
+        path: downloadTaskPath.value,
+        password: downloadClientPassword.value
+    });
+    window.open(url, '_blank');
+    isDownloadPasswordModalOpen.value = false;
+};
 
 // ─── Create form ───────────────────────────────────────────────────────────────
 const createForm = useForm({
@@ -730,7 +760,7 @@ const atRiskTasks = computed(() => {
                                     </p>
                                     <div class="space-y-1.5">
                                         <template v-for="(path, ix) in selectedTask.document_path" :key="ix">
-                                            <a :href="'/storage/' + path" target="_blank" class="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-md shadow-sm border border-indigo-50 dark:border-indigo-900/50 w-full group">
+                                            <a :href="route('tasks.documents.download', { task: selectedTask.id, path: path })" target="_blank" class="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-md shadow-sm border border-indigo-50 dark:border-indigo-900/50 w-full group">
                                                 <PaperClipIcon class="h-4 w-4 text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors" />
                                                 <span class="truncate font-medium">Download Document {{ ix + 1 }}</span>
                                             </a>

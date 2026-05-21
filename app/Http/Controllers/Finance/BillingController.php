@@ -72,15 +72,15 @@ class BillingController extends Controller
             'year'  => 'required|integer|min:2020',
         ]);
 
+        $start = \Carbon\Carbon::create($request->year, $request->month, 1)->startOfMonth();
+        $end = $start->copy()->endOfMonth();
+
         $clients = Client::where('retainer_fee', '>', 0)->get();
         $count = 0;
 
         foreach ($clients as $client) {
             // Check if already has a draft or payment for this month/year range
             // For simplicity, we check if an invoice for this month exists or create one
-            $start = Carbon::create($request->year, $request->month, 1)->startOfMonth();
-            $end = $start->copy()->endOfMonth();
-
             $invoice = ServiceInvoice::where('client_id', $client->id)
                 ->where('period_start', $start)
                 ->first();

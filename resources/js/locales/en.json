@@ -590,5 +590,7 @@
     "discard": "Discard",
     "digital_audit_receipt": "Digital Audit Receipt",
     "no_visual_record_available": "No Visual Record Available",
-    "save_copy": "Save Copy"
+    "save_copy": "Save Copy",
+    "document": "Document",
+    "documents": "Documents"
 }

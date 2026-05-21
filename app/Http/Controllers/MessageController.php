@@ -133,6 +133,15 @@ class MessageController extends Controller
     // ── POST: Employee replies to a Client ────────────────────────────────────
     public function storeFromEmployee(Request $request, $client_id)
     {
+        $user = Auth::user();
+        $client = Client::findOrFail($client_id);
+
+        abort_unless(
+            $client->assigned_employee_id === $user->id || $user->hasRole('Branch Manager') || $user->hasRole('Super Admin'),
+            403,
+            'You are not assigned to this client.'
+        );
+
         $request->validate([
             'body'       => 'required_without:attachment|nullable|string',
             'attachment' => 'nullable|file|mimes:pdf,jpg,jpeg,png,xlsx,docx|max:10240',

@@ -47,6 +47,16 @@ class Client extends Model
         return $this->hasOne(User::class);
     }
 
+    public function bankAccounts()
+    {
+        return $this->hasMany(ClientBankAccount::class);
+    }
+
+    public function legalStructure()
+    {
+        return $this->belongsTo(LegalStructure::class);
+    }
+
     // --- The "Invisible Security" Layer (Global Scopes) ---
     protected static function booted()
     {

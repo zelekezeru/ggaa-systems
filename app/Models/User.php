@@ -145,9 +145,8 @@ class User extends Authenticatable
      */
     public function scopeAvailableForComplexity($query, $requiredPoints)
     {
-        $maxCapacity = config('workforce.max_capacity');
-
-        return $query->role('Employee')->get()->filter(function ($user) use ($maxCapacity, $requiredPoints) {
+        return $query->role('Employee')->get()->filter(function ($user) use ($requiredPoints) {
+            $maxCapacity = $user->staffProfile->max_capacity ?? (int) config('workforce.max_capacity');
             return ($user->getCurrentCapacityLoad() + $requiredPoints) <= $maxCapacity;
         });
     }
@@ -163,14 +162,14 @@ class User extends Authenticatable
 
     public function getCapacityPercentAttribute(): int
     {
-        $max = (int) config('workforce.max_capacity');
+        $max = $this->staffProfile->max_capacity ?? (int) config('workforce.max_capacity');
         if ($max <= 0) return 0;
         return (int) min(100, round(($this->getCurrentCapacityLoad() / $max) * 100));
     }
 
     public function getRemainingCapacityAttribute(): int
     {
-        $max = (int) config('workforce.max_capacity');
+        $max = $this->staffProfile->max_capacity ?? (int) config('workforce.max_capacity');
         return max(0, $max - $this->getCurrentCapacityLoad());
     }
 
