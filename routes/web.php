@@ -344,4 +344,13 @@ Route::middleware(['auth', 'role:Employee|Branch Manager|Super Admin'])->group(f
     Route::post('/firm/clients/{client_id}/messages', [MessageController::class, 'storeFromEmployee'])->name('employee.messages.store');
 });
 
+// --- TRAINING PORTAL (Publicly Accessible) ---
+Route::prefix('training')->group(function () {
+    Route::get('/', [\App\Http\Controllers\TrainingController::class, 'index'])->name('training.index');
+    Route::get('/employees', [\App\Http\Controllers\TrainingController::class, 'employees'])->name('training.employees');
+    Route::get('/admins', [\App\Http\Controllers\TrainingController::class, 'admins'])->name('training.admins');
+    Route::get('/finances', [\App\Http\Controllers\TrainingController::class, 'finances'])->name('training.finances');
+});
+
 require __DIR__ . '/auth.php';
+

@@ -65,6 +65,13 @@ const canViewProjects = computed(() => userPermissions.value.includes('view team
                         >
                             {{ $t('team_projects') || 'Team Projects' }}
                         </Link>
+                        <Link
+                            :href="route('training.index')"
+                            class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                            :class="$page.url.startsWith('/training') ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white'"
+                        >
+                            {{ $t('training') }}
+                        </Link>
                     </nav>
                 </div>
 

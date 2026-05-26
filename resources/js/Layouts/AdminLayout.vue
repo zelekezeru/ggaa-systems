@@ -56,6 +56,7 @@ const toggleDropdown = (key) => {
 
 const navigation = computed(() => [
     { name: t('dashboard'), href: route('super-admin.dashboard'), icon: Squares2X2Icon, current: page.url === '/super-admin/dashboard' },
+    { name: t('training'), href: route('training.index'), icon: BookOpenIcon, current: page.url.startsWith('/training') },
     { name: t('branches'), href: route('super-admin.branches'), icon: BuildingOfficeIcon, current: page.url.startsWith('/super-admin/branches') },
     { 
         name: t('task_management') || 'Task Management', 

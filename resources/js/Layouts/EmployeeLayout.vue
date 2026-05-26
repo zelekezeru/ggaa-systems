@@ -104,6 +104,21 @@ const canViewLedger = computed(() => userPermissions.value.includes('view ledger
                                  class="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_10px_rgba(79,70,229,0.5)]"></div>
                         </Link>
 
+                        <!-- Training Portal -->
+                        <Link
+                            :href="route('training.index')"
+                            class="relative px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 overflow-hidden group"
+                            :class="[
+                                $page.url.startsWith('/training')
+                                    ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-500/10 shadow-sm ring-1 ring-indigo-100 dark:ring-indigo-500/20'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                            ]"
+                        >
+                            <span class="relative z-10">{{ $t('training') }}</span>
+                            <div v-if="$page.url.startsWith('/training')"
+                                 class="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-t-full shadow-[0_-2px_10px_rgba(79,70,229,0.5)]"></div>
+                        </Link>
+
                         <!-- Financial Ledger -->
                         <Link
                             v-if="canViewLedger"
@@ -129,7 +144,7 @@ const canViewLedger = computed(() => userPermissions.value.includes('view ledger
                     
                     <!-- Theme Toggle -->
                     <ThemeToggle />
-
+ 
                     <div class="hidden sm:flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800">
                         <div class="flex flex-col items-end">
                             <span class="text-sm font-bold text-slate-900 dark:text-white leading-tight">{{ user?.name }}</span>
@@ -141,12 +156,12 @@ const canViewLedger = computed(() => userPermissions.value.includes('view ledger
                             </div>
                         </div>
                     </div>
-
+ 
                     <!-- Language Switch Component -->
                     <div class="scale-90 ml-1">
                         <LanguageSwitcher />
                     </div>
-
+ 
                     <Link
                         href="/logout"
                         method="post"
@@ -160,7 +175,7 @@ const canViewLedger = computed(() => userPermissions.value.includes('view ledger
                     </Link>
                 </div>
             </div>
-
+ 
             <!-- Absolute Mobile Dropdown Menu -->
             <transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0 -translate-y-4" enter-to-class="opacity-100 translate-y-0" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 -translate-y-4">
                 <div v-show="mobileMenuOpen" class="absolute top-24 left-4 right-4 md:hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl overflow-hidden z-50">
@@ -169,6 +184,7 @@ const canViewLedger = computed(() => userPermissions.value.includes('view ledger
                         <Link :href="route('employee.daily-tasks.index')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/daily-tasks') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('daily_tasks') }}</Link>
                         <Link :href="route('employee.performance')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/performance') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('performance') }}</Link>
                         <Link :href="route('employee.team-projects.index')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/team-projects') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('team_projects') }}</Link>
+                        <Link :href="route('training.index')" class="px-4 py-3 text-sm font-bold w-full transition-colors" :class="$page.url.includes('/training') ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-600 hover:text-indigo-600'" @click="mobileMenuOpen = false">{{ $t('training') }}</Link>
                     </nav>
                 </div>
             </transition>

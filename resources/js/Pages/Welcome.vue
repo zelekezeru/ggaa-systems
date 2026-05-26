@@ -74,6 +74,13 @@ const features = [
                 <div class="hidden md:flex items-center gap-8">
                     <nav v-if="canLogin" class="flex items-center gap-4">
                         <Link
+                            :href="route('training.index')"
+                            class="text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2 transition-all mr-2"
+                        >
+                            {{ $t('training') }}
+                        </Link>
+
+                        <Link
                             v-if="$page.props.auth.user"
                             :href="route('dashboard')"
                             class="text-sm font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 border-2 border-blue-600/20 px-5 py-2 rounded-xl transition-all"
@@ -109,7 +116,14 @@ const features = [
 
             <!-- Mobile Menu -->
             <div v-if="isMenuOpen" class="md:hidden absolute top-full w-full bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-6 flex flex-col gap-4 animate-in slide-in-from-top duration-300">
-                 <Link
+                <Link
+                    :href="route('training.index')"
+                    class="w-full text-center py-3 rounded-xl bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-600/20 font-bold"
+                >
+                    {{ $t('training') }}
+                </Link>
+                
+                <Link
                     v-if="$page.props.auth.user"
                     :href="route('dashboard')"
                     class="w-full text-center py-3 rounded-xl bg-blue-600 text-white font-bold"
