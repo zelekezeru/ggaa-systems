@@ -424,9 +424,9 @@ const atRiskTasks = computed(() => {
                                 <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ task.client?.company_name }}</p>
                                 <div class="flex items-center gap-2 mt-0.5">
                                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ task.template?.name ?? '—' }}</p>
-                                    <div v-if="task.document_path?.length" class="flex items-center gap-0.5 text-xs text-indigo-500" title="Has attachments">
+                                    <div v-if="task.document_path?.length" class="flex items-center gap-0.5 text-xs text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded" title="Has attachments">
                                         <PaperClipIcon class="h-3 w-3" />
-                                        <span>{{ task.document_path.length }}</span>
+                                        <span>{{ task.document_path.length }} files</span>
                                     </div>
                                     <div v-if="task.notes" class="flex items-center gap-0.5 text-xs text-gray-400" title="Has notes">
                                         <ChatBubbleBottomCenterTextIcon class="h-3 w-3" />
@@ -761,8 +761,8 @@ const atRiskTasks = computed(() => {
                                     <div class="space-y-1.5">
                                         <template v-for="(path, ix) in selectedTask.document_path" :key="ix">
                                             <a :href="route('tasks.documents.download', { task: selectedTask.id, path: path })" target="_blank" class="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors bg-white dark:bg-slate-800 px-2.5 py-1.5 rounded-md shadow-sm border border-indigo-50 dark:border-indigo-900/50 w-full group">
-                                                <PaperClipIcon class="h-4 w-4 text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors" />
-                                                <span class="truncate font-medium">Download Document {{ ix + 1 }}</span>
+                                                <PaperClipIcon class="h-4 w-4 text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors flex-shrink-0" />
+                                                <span class="truncate font-medium">{{ path.split('/').pop() || `Document ${ix + 1}` }}</span>
                                             </a>
                                         </template>
                                     </div>

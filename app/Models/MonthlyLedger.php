@@ -20,6 +20,8 @@ class MonthlyLedger extends Model
         'inventory_items_start'       => 'decimal:3',
         'inventory_items_end'         => 'decimal:3',
         'inventory_sold_quantity'     => 'decimal:3',
+        'custom_expenses'             => 'array',
+        'hidden_expense_fields'       => 'array',
     ];
 
     protected $appends = [
@@ -59,23 +61,29 @@ class MonthlyLedger extends Model
 
     public function getTotalExpensesAttribute(): float
     {
-        return (float) $this->salary_expense
-            + (float) $this->pension_expense
-            + (float) $this->printing_expense
-            + (float) $this->shed_rent
-            + (float) $this->stationery_expense
-            + (float) $this->office_rent_expense
-            + (float) $this->transport_expense
-            + (float) $this->machine_fa_expense
-            + (float) $this->eeu_expense
-            + (float) $this->maintenance_expense
-            + (float) $this->advertising_expense
-            + (float) $this->uniform_expense
-            + (float) $this->indirect_materials_expense
-            + (float) $this->depreciation_expense
-            + (float) $this->legal_fee_expense
-            + (float) $this->bank_interest_expense
-            + (float) $this->bank_service_charge;
+        $hidden = $this->hidden_expense_fields ?? [];
+
+        $standard = [
+            'salary_expense', 'pension_expense', 'printing_expense', 'shed_rent',
+            'stationery_expense', 'office_rent_expense', 'transport_expense',
+            'machine_fa_expense', 'eeu_expense', 'maintenance_expense',
+            'advertising_expense', 'uniform_expense', 'indirect_materials_expense',
+            'depreciation_expense', 'legal_fee_expense', 'bank_interest_expense',
+            'bank_service_charge',
+        ];
+
+        $total = 0.0;
+        foreach ($standard as $field) {
+            if (! in_array($field, $hidden, true)) {
+                $total += (float) $this->$field;
+            }
+        }
+
+        foreach ($this->custom_expenses ?? [] as $extra) {
+            $total += (float) ($extra['amount'] ?? 0);
+        }
+
+        return $total;
     }
 
     public function getNetProfitAttribute(): float
@@ -83,12 +91,13 @@ class MonthlyLedger extends Model
         return $this->gross_profit - $this->total_expenses;
     }
 
-    // Ethiopian business income tax: NIBT × 35% − 24,600
+    // Ethiopian business income tax: NIBT × rate% − 24,600 (top-bracket deduction, default 35%)
     public function getProfitTaxAttribute(): float
     {
         $nibt = $this->net_profit;
         if ($nibt <= 0) return 0;
-        return max(0, ($nibt * 0.35) - 24600);
+        $rate = (float) ($this->tax_rate ?? 35);
+        return max(0, ($nibt * $rate / 100) - 24600);
     }
 
     public function getTotalBankBalanceAttribute(): float
@@ -150,7 +159,7 @@ class MonthlyLedger extends Model
 
             $user = Auth::user();
 
-            if ($user->hasRole('Super Admin')) {
+            if ($user->hasAnyRole(['Super Admin', 'Operation Manager'])) {
                 return;
             }
 

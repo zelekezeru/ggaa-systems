@@ -32,6 +32,7 @@ const props = defineProps({
     branches: Array,
     serviceTypes: Array,
     positions: Object,
+    teams: { type: Object, default: () => ({}) },
     performance: Object,
 });
 
@@ -63,8 +64,9 @@ const form = useForm({
     email: props.staff.email,
     branch_id: props.staff.branch_id || '',
     service_type_ids: props.staff.service_types.map(st => st.id),
-    position: props.staff.staff_profile?.position || 'employee',
+    position: props.staff.staff_profile?.position || 'junior_accountant',
     position_title: props.staff.staff_profile?.position_title || '',
+    team: props.staff.staff_profile?.team || '',
     employment_type: props.staff.staff_profile?.employment_type || 'full_time',
     is_active: props.staff.staff_profile?.is_active ?? true,
     max_capacity: props.staff.staff_profile?.max_capacity ?? 30,
@@ -331,9 +333,16 @@ const submitEdit = () => {
                 </div>
 
                 <div class="grid grid-cols-3 gap-4">
-                    <div class="col-span-2">
+                    <div>
                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Position title</label>
                         <input v-model="form.position_title" type="text" placeholder="e.g. Senior Tax Advisor" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Operational Team</label>
+                        <select v-model="form.team" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm sm:text-sm focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">None</option>
+                            <option v-for="(label, key) in teams" :key="key" :value="key">{{ label }}</option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Capacity points override</label>

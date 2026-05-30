@@ -40,7 +40,7 @@ class DailyTask extends Model
             /** @var User $user */
             $user = Auth::user();
 
-            if ($user->hasRole('Super Admin')) {
+            if ($user->hasAnyRole(['Super Admin', 'Operation Manager'])) {
                 return;
             }
 

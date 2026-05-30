@@ -24,7 +24,8 @@ import {
     ChevronUpIcon,
     RectangleGroupIcon,
     BookOpenIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    ClipboardDocumentCheckIcon
 } from '@heroicons/vue/24/outline';
 
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue';
@@ -85,6 +86,7 @@ const navigation = computed(() => [
     { name: t('customers') || 'Customers', href: route('super-admin.clients'), icon: UsersIcon, current: page.url.startsWith('/super-admin/clients') },
     { name: t('documents') || 'Documents', href: route('super-admin.documents'), icon: DocumentDuplicateIcon, current: page.url.startsWith('/super-admin/documents') },
     { name: t('staff'), href: route('super-admin.staff'), icon: UserGroupIcon, current: page.url.startsWith('/super-admin/staff') },
+    { name: t('evaluations') || 'Evaluations', href: route('super-admin.evaluations.index'), icon: ClipboardDocumentCheckIcon, current: page.url.startsWith('/super-admin/evaluations') },
     { name: t('reports'), href: route('super-admin.reports'), icon: ChartBarIcon, current: page.url.startsWith('/super-admin/reports') },
     { name: t('service_types') || 'Service configs', href: route('super-admin.service-types'), icon: WrenchScrewdriverIcon, current: page.url.startsWith('/super-admin/service-types') },
     { name: t('role_management'), href: route('super-admin.roles.index'), icon: ShieldCheckIcon, current: page.url.startsWith('/super-admin/roles') },

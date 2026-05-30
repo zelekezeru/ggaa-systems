@@ -259,7 +259,15 @@ class MonthlyLedgerController extends Controller
             'purchase_vat'    => 'nullable|numeric|min:0',
             'withholding_tax' => 'nullable|numeric|min:0',
 
-            'notes' => 'nullable|string|max:1000',
+            'notes'    => 'nullable|string|max:1000',
+            'tax_rate' => 'nullable|numeric|min:0|max:100',
+
+            'custom_expenses'              => 'nullable|array|max:20',
+            'custom_expenses.*.label'      => 'required|string|max:100',
+            'custom_expenses.*.amount'     => 'required|numeric|min:0',
+
+            'hidden_expense_fields'   => 'nullable|array',
+            'hidden_expense_fields.*' => 'string|max:80',
         ]);
     }
 

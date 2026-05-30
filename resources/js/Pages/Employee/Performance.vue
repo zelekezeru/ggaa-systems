@@ -24,7 +24,22 @@ const props = defineProps({
     lockedAchievements:     { type: Array,  default: () => [] },
     totalAchievementPoints: { type: Number, default: 0 },
     leaderboard:            { type: Array,  default: () => [] },
+    evaluation:             { type: Object, default: null },
 });
+
+const evalGradeColor = computed(() => {
+    const s = props.evaluation?.overall_score ?? 0;
+    if (s >= 80) return 'text-emerald-500';
+    if (s >= 70) return 'text-indigo-500';
+    if (s >= 60) return 'text-amber-500';
+    return 'text-rose-500';
+});
+
+const evalCatColor = (cat) => ({
+    task_performance: 'bg-blue-500', team_project: 'bg-indigo-500', daily_task: 'bg-cyan-500',
+    client_satisfaction: 'bg-pink-500', manager_review: 'bg-purple-500', quality_compliance: 'bg-orange-500',
+    professionalism: 'bg-teal-500', attendance: 'bg-amber-500', leadership: 'bg-rose-500', custom: 'bg-slate-500',
+}[cat] || 'bg-slate-400');
 
 const tierStyle = (tier) => ({
     bronze:   { ring: 'ring-amber-700/40', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
@@ -81,6 +96,59 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
                             <span class="text-xs font-bold text-slate-400 uppercase mb-1">{{ t('status') || 'Vibe' }}</span>
                             <span class="text-sm font-black italic" :class="scoreCategory.color">{{ scoreCategory.label }}</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Formal Evaluation Breakdown ── -->
+            <div v-if="evaluation" class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between gap-4 p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">
+                            <CheckBadgeIcon class="w-3.5 h-3.5" />
+                            {{ t('formal_evaluation') || 'Formal Evaluation' }}
+                        </div>
+                        <h2 class="text-2xl font-black text-slate-900 dark:text-white">{{ evaluation.period_label }}</h2>
+                        <p class="text-sm text-slate-400 mt-0.5">
+                            {{ evaluation.evaluator ? (t('evaluated_by') || 'Evaluated by') + ' ' + evaluation.evaluator : '' }}
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <div class="flex items-baseline gap-1 justify-end">
+                            <span class="text-5xl font-black" :class="evalGradeColor">{{ evaluation.overall_score.toFixed(1) }}</span>
+                            <span class="text-xl font-bold text-slate-300">%</span>
+                        </div>
+                        <span class="text-sm font-bold" :class="evalGradeColor">{{ evaluation.grade }}</span>
+                    </div>
+                </div>
+
+                <div class="p-6 sm:p-8 space-y-4">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">{{ t('weighted_breakdown') || 'Weighted Breakdown' }}</p>
+                    <div class="space-y-3">
+                        <div v-for="(score, i) in evaluation.scores" :key="i" class="group">
+                            <div class="flex items-center justify-between gap-3 mb-1">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="w-2 h-2 rounded-full flex-shrink-0" :class="evalCatColor(score.category)" />
+                                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{{ score.metric_name }}</span>
+                                    <span v-if="score.is_auto" class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 flex-shrink-0">Auto</span>
+                                </div>
+                                <div class="flex items-center gap-3 flex-shrink-0">
+                                    <span class="text-[11px] text-slate-400">{{ score.weight }}% wt</span>
+                                    <span class="text-sm font-black text-slate-900 dark:text-white w-12 text-right">{{ score.normalized_score.toFixed(0) }}/100</span>
+                                </div>
+                            </div>
+                            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full transition-all duration-700"
+                                     :class="score.normalized_score >= 70 ? 'bg-emerald-500' : score.normalized_score >= 60 ? 'bg-amber-400' : 'bg-rose-500'"
+                                     :style="`width: ${score.normalized_score}%`" />
+                            </div>
+                            <p v-if="score.justification" class="text-[11px] text-slate-400 italic mt-1 pl-4">“{{ score.justification }}”</p>
+                        </div>
+                    </div>
+
+                    <div v-if="evaluation.summary_note" class="mt-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-700">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{{ t('manager_summary') || 'Manager Summary' }}</p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{{ evaluation.summary_note }}</p>
                     </div>
                 </div>
             </div>

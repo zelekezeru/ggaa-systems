@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             ClientSeeder::class,
             AchievementSeeder::class,
             DocumentTypeSeeder::class,
+            EvaluationMetricSeeder::class,
         ]);
     }
 }

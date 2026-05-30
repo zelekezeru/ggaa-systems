@@ -29,7 +29,7 @@ class TeamProject extends Model
             /** @var \App\Models\User $user */
             $user = Auth::user();
 
-            if ($user->hasRole('Super Admin')) {
+            if ($user->hasAnyRole(['Super Admin', 'Operation Manager'])) {
                 return;
             }
 

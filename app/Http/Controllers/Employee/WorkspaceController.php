@@ -275,6 +275,35 @@ class WorkspaceController extends Controller
             ->sortByDesc(fn ($u) => $u['achievement_points'] * 10 + $u['monthly_score'])
             ->values();
 
+        // 9. Latest finalized formal evaluation (weighted appraisal breakdown)
+        $latestEvaluation = \App\Models\Evaluation::withoutGlobalScopes()
+            ->where('user_id', $user->id)
+            ->where('status', 'finalized')
+            ->orderByDesc('period_year')
+            ->orderByDesc('period_month')
+            ->with('scores')
+            ->first();
+
+        $evaluation = null;
+        if ($latestEvaluation) {
+            $evaluation = [
+                'period_label'  => $latestEvaluation->period_label,
+                'overall_score' => (float) $latestEvaluation->overall_score,
+                'grade'         => \App\Services\EvaluationService::grade((float) $latestEvaluation->overall_score),
+                'summary_note'  => $latestEvaluation->summary_note,
+                'evaluator'     => optional($latestEvaluation->evaluator)->name,
+                'scores'        => $latestEvaluation->scores->map(fn ($s) => [
+                    'metric_name'      => $s->metric_name,
+                    'category'         => $s->category,
+                    'weight'           => (float) $s->weight,
+                    'normalized_score' => $s->normalized_score !== null ? (float) $s->normalized_score : 0,
+                    'weighted_score'   => $s->weighted_score !== null ? (float) $s->weighted_score : 0,
+                    'is_auto'          => (bool) $s->is_auto,
+                    'justification'    => $s->justification,
+                ])->values(),
+            ];
+        }
+
         return Inertia::render('Employee/Performance', [
             'stats' => [
                 'score'        => $score,
@@ -285,6 +314,7 @@ class WorkspaceController extends Controller
                 'pulse'        => $pulse,
                 'load'         => $currentLoad,
             ],
+            'evaluation'          => $evaluation,
             'heatmap'             => $heatmap,
             'employee'            => $user->only('id', 'name'),
             'earnedAchievements'  => $earnedAchievements,

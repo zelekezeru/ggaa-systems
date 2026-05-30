@@ -13,8 +13,11 @@ class RoleAndPermissionSeeder extends Seeder
         // Reset cached roles and permissions
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // 1. Create Roles
+        // 1. Create Roles — aligned with the GGAA org chart.
+        // GM = Super Admin (top authority). Operation Manager oversees the
+        // operational teams (tax report / customer follow-up / pre-audit / files).
         $superAdmin    = Role::firstOrCreate(['name' => 'Super Admin']);
+        $operationMgr  = Role::firstOrCreate(['name' => 'Operation Manager']);
         $branchManager = Role::firstOrCreate(['name' => 'Branch Manager']);
         $teamLeader    = Role::firstOrCreate(['name' => 'Team Leader']);
         $employee      = Role::firstOrCreate(['name' => 'Employee']);
@@ -86,6 +89,11 @@ class RoleAndPermissionSeeder extends Seeder
             'submit invoice payment',
             'upload payment receipt',
             'download own invoices',
+            // Staff performance evaluation permissions
+            'view evaluations',
+            'manage evaluations',
+            'manage evaluation metrics',
+            'view own evaluation',
         ];
 
         foreach ($permissions as $permission) {
@@ -102,6 +110,7 @@ class RoleAndPermissionSeeder extends Seeder
             'view branch clients',
             'manage-clients',
             'view-clients',
+            'view-user',
             'assign-tasks',
             'unassign-tasks',
             'manage team projects',
@@ -112,6 +121,32 @@ class RoleAndPermissionSeeder extends Seeder
             'verify ledger',
             'view client ledger reports',
             'download ledger reports',
+            'view evaluations',
+            'manage evaluations',
+            'view own evaluation',
+        ]);
+
+        // Operation Manager — firm-wide operational oversight of the teams:
+        // tasks, team projects, staff visibility, and performance evaluations.
+        $operationMgr->syncPermissions([
+            'view all branches',
+            'view branch clients',
+            'view-clients',
+            'view-user',
+            'assign-tasks',
+            'unassign-tasks',
+            'manage team projects',
+            'view team projects',
+            'view ledger index',
+            'enter ledger data',
+            'verify ledger',
+            'view ledger progress',
+            'view client ledger reports',
+            'download ledger reports',
+            'view evaluations',
+            'manage evaluations',
+            'manage evaluation metrics',
+            'view own evaluation',
         ]);
 
         $teamLeader->syncPermissions([
@@ -122,6 +157,9 @@ class RoleAndPermissionSeeder extends Seeder
             'lead team project',
             'participate team project',
             'send direct messages',
+            'view evaluations',
+            'manage evaluations',
+            'view own evaluation',
         ]);
 
         $employee->syncPermissions([
@@ -136,6 +174,7 @@ class RoleAndPermissionSeeder extends Seeder
             'submit ledger',
             'view client ledger reports',
             'download ledger reports',
+            'view own evaluation',
         ]);
 
         $financeAdmin->syncPermissions([
@@ -160,6 +199,7 @@ class RoleAndPermissionSeeder extends Seeder
             'schedule invoice payments',
             'reject invoice payments',
             'view all payments',
+            'view own evaluation',
         ]);
 
         $clientUser->syncPermissions([

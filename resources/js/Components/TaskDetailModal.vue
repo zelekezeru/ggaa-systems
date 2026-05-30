@@ -152,7 +152,26 @@ function moveToNextStage() {
                         </div>
                     </div>
 
-                    <!-- Task Notes & Documents Form -->
+                    <!-- Attached Files — always visible regardless of status -->
+                    <div v-if="task.document_path && task.document_path.length" class="mb-5 bg-indigo-50/50 p-3 rounded-lg border border-indigo-100">
+                        <p class="text-xs font-bold text-indigo-900 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                            {{ $t('attached_files') || 'Attached Files' }}
+                            <span class="text-indigo-500 font-medium normal-case tracking-normal">({{ task.document_path.length }})</span>
+                        </p>
+                        <div class="space-y-1.5">
+                            <template v-for="(path, ix) in task.document_path" :key="ix">
+                                <a :href="route('tasks.documents.download', { task: task.id, path: path })" target="_blank" class="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 transition-colors bg-white px-2.5 py-1.5 rounded-md shadow-sm border border-indigo-50 group">
+                                    <svg class="h-4 w-4 flex-shrink-0 text-indigo-400 group-hover:text-indigo-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span class="truncate">{{ path.split('/').pop() || `File ${ix + 1}` }}</span>
+                                </a>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Task Notes & Documents Form — only for active tasks -->
                     <template v-if="task.status !== 'Done'">
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             {{ $t('task_notes') || 'Task Notes' }} <span class="text-gray-400 font-normal">({{ $t('optional') }})</span>
@@ -170,28 +189,13 @@ function moveToNextStage() {
                             <label class="block text-sm font-medium text-gray-700 mb-1">
                                 {{ $t('upload_documents') || 'Upload Documents' }}
                             </label>
-                            <input 
-                                type="file" 
-                                multiple 
-                                @input="form.attachments = $event.target.files" 
-                                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors" 
+                            <input
+                                type="file"
+                                multiple
+                                @input="form.attachments = $event.target.files"
+                                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors"
                             />
                             <p v-if="form.errors.attachments" class="mt-1 text-xs text-red-600">{{ form.errors.attachments }}</p>
-                        </div>
-
-                        <!-- Display currently attached documents if any -->
-                        <div v-if="task.document_path && task.document_path.length" class="mb-5 bg-indigo-50/50 p-3 rounded-lg border border-indigo-100">
-                            <p class="text-xs font-bold text-indigo-900 mb-2 uppercase tracking-wide">{{ $t('attached_files') || 'Attached Files' }}</p>
-                            <div class="space-y-1.5">
-                                <template v-for="(path, ix) in task.document_path" :key="ix">
-                                    <a :href="route('tasks.documents.download', { task: task.id, path: path })" target="_blank" class="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 transition-colors bg-white px-2.5 py-1.5 rounded-md shadow-sm border border-indigo-50">
-                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                        </svg>
-                                        <span class="truncate">File {{ ix + 1 }}</span>
-                                    </a>
-                                </template>
-                            </div>
                         </div>
 
                         <div class="mt-4 flex flex-wrap gap-3">
@@ -224,9 +228,9 @@ function moveToNextStage() {
 
                     <!-- Already done state -->
                     <template v-else>
-                        <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-                            <p class="text-green-700 font-semibold text-sm">{{ $t('completed') }} {{ formatDate(task.completed_at) }}</p>
-                            <p v-if="task.notes" class="text-green-600 text-xs mt-1">{{ task.notes }}</p>
+                        <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+                            <p class="text-green-700 font-semibold text-sm text-center">{{ $t('completed') }} {{ formatDate(task.completed_at) }}</p>
+                            <p v-if="task.notes" class="text-gray-600 text-xs mt-2 whitespace-pre-wrap border-t border-green-100 pt-2">{{ task.notes }}</p>
                         </div>
                         <button
                             @click="$emit('close')"

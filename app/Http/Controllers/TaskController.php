@@ -76,10 +76,11 @@ class TaskController extends Controller
         $directory = 'client_vault/' . ($task->client?->tin_number ?? 'unassigned') . '/' . now()->format('Y-m');
         $path      = $request->file('attachment')->store($directory, 'local');
 
+        $existingPaths = is_array($task->document_path) ? $task->document_path : [];
+
         $task->update([
-            'status'        => 'In Review',   // valid enum: Waiting on Client | To Do | In Review | Done
-            'completed_at'  => now(),
-            'document_path' => $path,
+            'status'        => 'In Review',
+            'document_path' => array_merge($existingPaths, [$path]),
         ]);
 
         if ($request->filled('comment')) {

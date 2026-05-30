@@ -21,6 +21,7 @@ use App\Http\Controllers\ServiceTypeController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\MonthlyLedgerController;
 use App\Http\Controllers\Finance\LedgerProgressController;
 use App\Http\Controllers\Finance\InvoiceController as FinanceInvoiceController;
@@ -100,12 +101,13 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'role:Client'])->group(function () {
     Route::get('/portal/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
     Route::get('/portal/tasks/{task}', [ClientPortalController::class, 'showTask'])->name('client.tasks.show');
+    Route::post('/portal/tasks/{task}/upload', [ClientPortalController::class, 'uploadFiles'])->name('client.tasks.upload');
     Route::get('/portal/messages', [MessageController::class, 'indexForClient'])->name('client.messages.index');
     Route::post('/portal/messages', [MessageController::class, 'storeFromClient'])->name('client.messages.store');
 });
 
 // --- SUPER ADMIN ---
-Route::middleware(['auth', 'role:Super Admin|Branch Manager'])->group(function () {
+Route::middleware(['auth', 'role:Super Admin|Branch Manager|Operation Manager'])->group(function () {
     Route::get('/super-admin/dashboard', [SuperAdminDashboardController::class, 'index'])->name('super-admin.dashboard');
     Route::get('/super-admin/branches', [SuperAdminController::class, 'branches'])->name('super-admin.branches');
     Route::get('/super-admin/branches/{branch}', [BranchOverviewController::class, 'show'])->name('super-admin.branches.show');
@@ -172,6 +174,17 @@ Route::middleware(['auth', 'role:Super Admin|Branch Manager'])->group(function (
     Route::post('/super-admin/tasks', [TaskManagementController::class, 'store'])->name('super-admin.tasks.store');
     Route::put('/super-admin/tasks/{task}', [TaskManagementController::class, 'update'])->name('super-admin.tasks.update');
     Route::delete('/super-admin/tasks/{task}', [TaskManagementController::class, 'destroy'])->name('super-admin.tasks.destroy');
+
+    // Staff Performance Evaluations
+    Route::get('/super-admin/evaluations', [EvaluationController::class, 'index'])->name('super-admin.evaluations.index');
+    Route::get('/super-admin/evaluations/staff/{staff}', [EvaluationController::class, 'show'])->name('super-admin.evaluations.show');
+    Route::post('/super-admin/evaluations/{evaluation}/scores', [EvaluationController::class, 'saveScores'])->name('super-admin.evaluations.scores');
+    Route::post('/super-admin/evaluations/{evaluation}/finalize', [EvaluationController::class, 'finalize'])->name('super-admin.evaluations.finalize');
+    Route::post('/super-admin/evaluations/{evaluation}/reopen', [EvaluationController::class, 'reopen'])->name('super-admin.evaluations.reopen');
+    Route::post('/super-admin/evaluations/staff/{staff}/metrics', [EvaluationController::class, 'attachMetric'])->name('super-admin.evaluations.metrics.attach');
+    Route::put('/super-admin/evaluations/staff/{staff}/metrics/{assignment}', [EvaluationController::class, 'updateMetricWeight'])->name('super-admin.evaluations.metrics.update');
+    Route::delete('/super-admin/evaluations/staff/{staff}/metrics/{assignment}', [EvaluationController::class, 'detachMetric'])->name('super-admin.evaluations.metrics.detach');
+    Route::post('/super-admin/evaluation-metrics', [EvaluationController::class, 'storeMetric'])->name('super-admin.evaluation-metrics.store');
 
     // Task Types (Templates)
     Route::get('/super-admin/task-types', [TaskTemplateController::class, 'index'])->name('super-admin.task-types.index');

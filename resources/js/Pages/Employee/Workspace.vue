@@ -381,10 +381,29 @@ function closeModal() {
                                     {{ task.client?.company_name }}
                                 </h4>
                                 
+                                <!-- Progress bar -->
+                                <div class="mb-3">
+                                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                            class="h-full rounded-full transition-all duration-500"
+                                            :class="{
+                                                'bg-amber-400': col.key === 'Waiting on Client',
+                                                'bg-blue-500': col.key === 'To Do',
+                                                'bg-purple-500': col.key === 'In Review',
+                                                'bg-emerald-500': col.key === 'Done',
+                                            }"
+                                            :style="{ width: col.key === 'Waiting on Client' ? '5%' : col.key === 'To Do' ? '35%' : col.key === 'In Review' ? '70%' : '100%' }"
+                                        />
+                                    </div>
+                                </div>
+
+                                <!-- Notes preview -->
+                                <p v-if="task.notes" class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mb-2 italic">{{ task.notes }}</p>
+
                                 <div class="flex items-center gap-2 mb-3">
                                     <div v-if="task.document_path?.length" class="flex items-center gap-1 text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded" :title="t('attachments') || 'Attachments'">
                                         <PaperClipIcon class="h-3 w-3" />
-                                        <span>{{ task.document_path.length }}</span>
+                                        <span>{{ task.document_path.length }} {{ t('files') || 'files' }}</span>
                                     </div>
                                     <div v-if="task.notes" class="flex items-center gap-1 text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded" :title="t('has_notes') || 'Has notes'">
                                         <ChatBubbleBottomCenterTextIcon class="h-3 w-3" />

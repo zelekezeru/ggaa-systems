@@ -11,7 +11,7 @@ import {
     BanknotesIcon, ShoppingCartIcon, WrenchScrewdriverIcon,
     BuildingLibraryIcon, ReceiptPercentIcon, PlusIcon,
     LockClosedIcon, LockOpenIcon, ArrowPathIcon,
-    TicketIcon, CubeIcon
+    TicketIcon, CubeIcon, EyeIcon, EyeSlashIcon, TrashIcon,
 } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
@@ -52,6 +52,26 @@ const nullableFields = [
     'cash_machine_start_number', 'cash_machine_end_number',
     'manual_receipt_start_number', 'manual_receipt_end_number',
     'inventory_items_start', 'inventory_items_end', 'inventory_sold_quantity',
+];
+
+const ALL_EXPENSE_FIELDS = [
+    { key: 'salary_expense',             label: 'salary_expense' },
+    { key: 'pension_expense',            label: 'pension_expense' },
+    { key: 'eeu_expense',                label: 'eeu_expense' },
+    { key: 'maintenance_expense',        label: 'maintenance_expense' },
+    { key: 'machine_fa_expense',         label: 'machine_fa_expense' },
+    { key: 'office_rent_expense',        label: 'office_rent_expense' },
+    { key: 'shed_rent',                  label: 'shed_rent' },
+    { key: 'transport_expense',          label: 'transport_expense' },
+    { key: 'printing_expense',           label: 'printing_expense' },
+    { key: 'stationery_expense',         label: 'stationery_expense' },
+    { key: 'advertising_expense',        label: 'advertising_expense' },
+    { key: 'uniform_expense',            label: 'uniform_expense' },
+    { key: 'indirect_materials_expense', label: 'indirect_materials_expense' },
+    { key: 'depreciation_expense',       label: 'depreciation_expense' },
+    { key: 'legal_fee_expense',          label: 'legal_fee_expense' },
+    { key: 'bank_interest_expense',      label: 'bank_interest_expense' },
+    { key: 'bank_service_charge',        label: 'bank_service_charge' },
 ];
 
 const emptyForm = () => ({
@@ -95,8 +115,11 @@ const emptyForm = () => ({
     purchase_vat:    '',
     withholding_tax: '',
 
-    notes:        '',
-    bank_balances: {},
+    notes:                '',
+    bank_balances:        {},
+    tax_rate:             35,
+    custom_expenses:      [],   // [{label: '', amount: ''}]
+    hidden_expense_fields: [],  // ['salary_expense', ...]
 });
 
 const form = useForm(emptyForm());
@@ -129,6 +152,9 @@ function loadEntry() {
             };
         });
         form.bank_balances = balMap;
+        form.tax_rate = e.tax_rate ?? 35;
+        form.custom_expenses = (e.custom_expenses ?? []).map(c => ({ ...c }));
+        form.hidden_expense_fields = Array.isArray(e.hidden_expense_fields) ? [...e.hidden_expense_fields] : [];
     } else {
         const reset = emptyForm();
         reset.eth_year  = selectedYear.value;
@@ -173,21 +199,43 @@ const availableForSales = computed(() => n(form.beginning_inventory) + n(form.pu
 const cogs = computed(() => Math.max(0, availableForSales.value - n(form.ending_inventory)));
 const grossProfit = computed(() => totalSales.value - cogs.value);
 
-const totalExpenses = computed(() =>
-    n(form.salary_expense) + n(form.pension_expense) + n(form.printing_expense) +
-    n(form.shed_rent) + n(form.stationery_expense) + n(form.office_rent_expense) +
-    n(form.transport_expense) + n(form.machine_fa_expense) + n(form.eeu_expense) +
-    n(form.maintenance_expense) + n(form.advertising_expense) + n(form.uniform_expense) +
-    n(form.indirect_materials_expense) + n(form.depreciation_expense) +
-    n(form.legal_fee_expense) + n(form.bank_interest_expense) + n(form.bank_service_charge)
+// Only visible (non-hidden) standard fields count toward the total
+const visibleExpenseFields = computed(() =>
+    ALL_EXPENSE_FIELDS.filter(f => !form.hidden_expense_fields.includes(f.key))
 );
+
+const totalExpenses = computed(() => {
+    const standardTotal = visibleExpenseFields.value.reduce((sum, f) => sum + n(form[f.key]), 0);
+    const customTotal   = (form.custom_expenses ?? []).reduce((sum, e) => sum + n(e.amount), 0);
+    return standardTotal + customTotal;
+});
 
 const netProfit = computed(() => grossProfit.value - totalExpenses.value);
 
 const profitTax = computed(() => {
     if (netProfit.value <= 0) return 0;
-    return Math.max(0, (netProfit.value * 0.35) - 24600);
+    const rate = parseFloat(form.tax_rate) || 35;
+    return Math.max(0, (netProfit.value * rate / 100) - 24600);
 });
+
+// ── Custom & hidden field helpers ──
+function toggleExpenseField(key) {
+    const idx = form.hidden_expense_fields.indexOf(key);
+    if (idx === -1) {
+        form.hidden_expense_fields = [...form.hidden_expense_fields, key];
+        form[key] = ''; // clear the value when hidden
+    } else {
+        form.hidden_expense_fields = form.hidden_expense_fields.filter(k => k !== key);
+    }
+}
+
+function addCustomExpense() {
+    form.custom_expenses = [...(form.custom_expenses ?? []), { label: '', amount: '' }];
+}
+
+function removeCustomExpense(idx) {
+    form.custom_expenses = form.custom_expenses.filter((_, i) => i !== idx);
+}
 
 watch(existing, (newVal) => {
     if (newVal?.status !== 'verified') {
@@ -281,7 +329,22 @@ function validate() {
         }
     }
 
-    // 4. If submitting, ensure at least some income or expense is recorded
+    // 4. Validate custom expense rows
+    (form.custom_expenses ?? []).forEach((e, i) => {
+        if (!e.label || !e.label.trim()) {
+            form.setError(`custom_expenses.${i}.label`, 'Label is required');
+            hasError = true;
+        }
+        if (e.amount === '' || e.amount === null || isNaN(parseFloat(e.amount))) {
+            form.setError(`custom_expenses.${i}.amount`, 'Must be a valid number');
+            hasError = true;
+        } else if (parseFloat(e.amount) < 0) {
+            form.setError(`custom_expenses.${i}.amount`, 'Cannot be negative');
+            hasError = true;
+        }
+    });
+
+    // 5. If submitting, ensure at least some income or expense is recorded
     if (form.status === 'submitted') {
         if (totalSales.value === 0 && totalExpenses.value === 0) {
             toast.error('Cannot submit an empty ledger. Please enter sales or expenses.');
@@ -696,32 +759,39 @@ const exportLedgerToPDF = async () => {
 
                     <!-- SECTION: Administration Expenses -->
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div class="flex items-center gap-2 px-5 py-3 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-900/30">
-                            <WrenchScrewdriverIcon class="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                            <h2 class="text-sm font-semibold text-purple-900 dark:text-purple-300 uppercase tracking-wide">{{ t('admin_expenses') }}</h2>
+                        <div class="flex items-center justify-between px-5 py-3 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-900/30">
+                            <div class="flex items-center gap-2">
+                                <WrenchScrewdriverIcon class="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                <h2 class="text-sm font-semibold text-purple-900 dark:text-purple-300 uppercase tracking-wide">{{ t('admin_expenses') }}</h2>
+                            </div>
+                            <span class="text-[10px] text-purple-500 dark:text-purple-400 font-medium">
+                                {{ ALL_EXPENSE_FIELDS.length - form.hidden_expense_fields.length }} / {{ ALL_EXPENSE_FIELDS.length }} fields active
+                            </span>
                         </div>
+
+                        <!-- Standard expense fields (toggleable) -->
                         <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <template v-for="field in [
-                                { key: 'salary_expense',             label: t('salary_expense') },
-                                { key: 'pension_expense',            label: t('pension_expense') },
-                                { key: 'eeu_expense',                label: t('eeu_expense') },
-                                { key: 'maintenance_expense',        label: t('maintenance_expense') },
-                                { key: 'machine_fa_expense',         label: t('machine_fa_expense') },
-                                { key: 'office_rent_expense',        label: t('office_rent_expense') },
-                                { key: 'shed_rent',                  label: t('shed_rent') },
-                                { key: 'transport_expense',          label: t('transport_expense') },
-                                { key: 'printing_expense',           label: t('printing_expense') },
-                                { key: 'stationery_expense',         label: t('stationery_expense') },
-                                { key: 'advertising_expense',        label: t('advertising_expense') },
-                                { key: 'uniform_expense',            label: t('uniform_expense') },
-                                { key: 'indirect_materials_expense', label: t('indirect_materials_expense') },
-                                { key: 'depreciation_expense',       label: t('depreciation_expense') },
-                                { key: 'legal_fee_expense',          label: t('legal_fee_expense') },
-                                { key: 'bank_interest_expense',      label: t('bank_interest_expense') },
-                                { key: 'bank_service_charge',        label: t('bank_service_charge') },
-                            ]" :key="field.key">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{{ field.label }}</label>
+                            <template v-for="field in ALL_EXPENSE_FIELDS" :key="field.key">
+                                <!-- Hidden field: show restore pill -->
+                                <div v-if="form.hidden_expense_fields.includes(field.key)"
+                                     class="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-200 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/30">
+                                    <span class="text-xs text-gray-400 dark:text-slate-500 flex-1 italic line-through">{{ t(field.label) }}</span>
+                                    <button v-if="!isLocked" type="button" @click="toggleExpenseField(field.key)"
+                                            class="text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors flex-shrink-0"
+                                            :title="'Show ' + t(field.label)">
+                                        <EyeSlashIcon class="h-4 w-4" />
+                                    </button>
+                                </div>
+                                <!-- Visible field -->
+                                <div v-else>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label class="text-xs font-medium text-gray-600 dark:text-slate-400">{{ t(field.label) }}</label>
+                                        <button v-if="!isLocked" type="button" @click="toggleExpenseField(field.key)"
+                                                class="text-gray-300 hover:text-red-400 dark:hover:text-red-400 transition-colors"
+                                                :title="'Hide ' + t(field.label)">
+                                            <EyeIcon class="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                     <input v-model="form[field.key]" type="number" min="0" step="0.01" placeholder="0.00"
                                         class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                                         :class="{'border-red-500': form.errors[field.key], 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
@@ -730,9 +800,44 @@ const exportLedgerToPDF = async () => {
                                 </div>
                             </template>
                         </div>
-                        <div class="px-5 pb-3 flex justify-between items-center border-t border-gray-100 dark:border-slate-700 pt-3">
-                            <span class="text-xs font-semibold text-gray-600 dark:text-slate-400">{{ t('total_expenses') }}</span>
-                            <span class="text-sm font-bold text-red-500 dark:text-red-400">{{ fmt(totalExpenses) }} ETB</span>
+
+                        <!-- Custom expense rows -->
+                        <div v-if="form.custom_expenses && form.custom_expenses.length" class="px-5 pb-3 space-y-2 border-t border-purple-100 dark:border-purple-900/30 pt-4">
+                            <p class="text-xs font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wide mb-3">Custom Expense Lines</p>
+                            <div v-for="(expense, idx) in form.custom_expenses" :key="idx" class="flex items-start gap-2">
+                                <div class="flex-1">
+                                    <input v-model="expense.label" type="text" placeholder="Expense label (e.g. Insurance)"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                        :class="{'border-red-500': form.errors[`custom_expenses.${idx}.label`], 'bg-gray-50 cursor-not-allowed': isLocked}"
+                                        :readonly="isLocked" />
+                                    <p v-if="form.errors[`custom_expenses.${idx}.label`]" class="mt-1 text-xs text-red-500">{{ form.errors[`custom_expenses.${idx}.label`] }}</p>
+                                </div>
+                                <div class="w-32">
+                                    <input v-model="expense.amount" type="number" min="0" step="0.01" placeholder="0.00"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                        :class="{'border-red-500': form.errors[`custom_expenses.${idx}.amount`], 'bg-gray-50 cursor-not-allowed': isLocked}"
+                                        :readonly="isLocked" />
+                                    <p v-if="form.errors[`custom_expenses.${idx}.amount`]" class="mt-1 text-xs text-red-500">{{ form.errors[`custom_expenses.${idx}.amount`] }}</p>
+                                </div>
+                                <button v-if="!isLocked" type="button" @click="removeCustomExpense(idx)"
+                                        class="mt-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors flex-shrink-0">
+                                    <TrashIcon class="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Add custom expense + total footer -->
+                        <div class="px-5 pb-4 border-t border-gray-100 dark:border-slate-700 pt-3 flex items-center justify-between gap-3 flex-wrap">
+                            <button v-if="!isLocked" type="button" @click="addCustomExpense"
+                                    class="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 transition-colors">
+                                <PlusIcon class="h-3.5 w-3.5" />
+                                Add custom expense line
+                            </button>
+                            <span v-else class="text-xs text-gray-400 dark:text-slate-500">—</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold text-gray-600 dark:text-slate-400">{{ t('total_expenses') }}</span>
+                                <span class="text-sm font-bold text-red-500 dark:text-red-400">{{ fmt(totalExpenses) }} ETB</span>
+                            </div>
                         </div>
                     </div>
 
@@ -880,9 +985,26 @@ const exportLedgerToPDF = async () => {
                                 <span class="text-sm font-bold text-slate-900 dark:text-white">{{ t('net_profit') }}</span>
                                 <span class="text-lg font-black" :class="profitClass">{{ fmt(netProfit) }}</span>
                             </div>
-                            <div class="flex justify-between items-center bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2">
-                                <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('profit_tax') }} (35%−24,600)</span>
-                                <span class="text-sm font-semibold text-orange-600 dark:text-orange-400">{{ fmt(profitTax) }}</span>
+                            <!-- Dynamic tax rate row -->
+                            <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg px-3 py-2.5 border border-orange-100 dark:border-orange-800/30">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <span class="text-xs text-orange-700 dark:text-orange-400 font-semibold">{{ t('profit_tax') }}</span>
+                                    <span class="text-sm font-bold text-orange-600 dark:text-orange-400">{{ fmt(profitTax) }} ETB</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-[10px] text-orange-600 dark:text-orange-500 whitespace-nowrap">Tax rate %</label>
+                                    <input
+                                        v-model="form.tax_rate"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.5"
+                                        :readonly="isLocked"
+                                        class="w-20 px-2 py-1 text-xs border border-orange-200 dark:border-orange-800/50 rounded-md bg-white dark:bg-slate-700 text-orange-700 dark:text-orange-300 font-bold focus:ring-2 focus:ring-orange-400 outline-none text-center"
+                                        :class="{'bg-gray-50 cursor-not-allowed': isLocked}"
+                                    />
+                                    <span class="text-[10px] text-orange-500">% − 24,600</span>
+                                </div>
                             </div>
                             <div v-if="bankAccounts.length > 0" class="flex justify-between items-center">
                                 <span class="text-xs text-gray-500 dark:text-slate-400">{{ t('total_bank_balance') }}</span>

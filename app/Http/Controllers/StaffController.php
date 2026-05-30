@@ -21,9 +21,26 @@ class StaffController extends Controller
      * assign to the user. Keep these in sync with RoleAndPermissionSeeder.
      */
     private const POSITION_TO_ROLE = [
+        // Executive
+        'general_manager'     => 'Super Admin',      // GM holds top authority
+        // Management
+        'operation_manager'   => 'Operation Manager',
+        'finance_admin'       => 'Finance Admin',
+        'branch_manager'      => 'Branch Manager',
+        // Team leaders
+        'team_leader'         => 'Team Leader',
+        // Operations staff
+        'senior_accountant'   => 'Employee',
+        'junior_accountant'   => 'Employee',
+        'file_management'     => 'Employee',
+        // Finance & Admin support
+        'hr_purchase_cashier' => 'Finance Admin',    // cashier sits under Finance & Admin
+        'technical_support'   => 'Employee',
+        'cleaning'            => 'Employee',
+
+        // ── Legacy keys (kept so historical rows never crash before remap) ──
         'employee'    => 'Employee',
         'manager'     => 'Branch Manager',
-        'team_leader' => 'Team Leader',
         'admin'       => 'Super Admin',
         'finance'     => 'Finance Admin',
         'other'       => 'Employee',
@@ -54,6 +71,8 @@ class StaffController extends Controller
             'branches'     => $branches,
             'serviceTypes' => $serviceTypes,
             'positions'    => StaffUser::POSITIONS,
+            'teams'        => StaffUser::TEAMS,
+            'positionTiers' => StaffUser::POSITION_TIERS,
         ]);
     }
 
@@ -74,6 +93,7 @@ class StaffController extends Controller
             // Staff-only
             'position'          => 'required_if:user_type,staff|in:' . implode(',', array_keys(StaffUser::POSITIONS)),
             'position_title'    => 'nullable|string|max:255',
+            'team'              => 'nullable|in:' . implode(',', array_keys(StaffUser::TEAMS)),
             'employment_type'   => 'nullable|in:full_time,part_time,contract',
             'hire_date'         => 'nullable|date',
 
@@ -104,6 +124,7 @@ class StaffController extends Controller
                 'user_id'         => $user->id,
                 'position'        => $validated['position'],
                 'position_title'  => $validated['position_title'] ?? null,
+                'team'            => $validated['team'] ?? null,
                 'employment_type' => $validated['employment_type'] ?? 'full_time',
                 'hire_date'       => $validated['hire_date'] ?? null,
                 'is_active'       => true,
@@ -133,6 +154,7 @@ class StaffController extends Controller
             'profile_photo'          => 'nullable|image|max:10000',
             'position'               => 'nullable|in:' . implode(',', array_keys(StaffUser::POSITIONS)),
             'position_title'         => 'nullable|string|max:255',
+            'team'                   => 'nullable|in:' . implode(',', array_keys(StaffUser::TEAMS)),
             'employment_type'        => 'nullable|in:full_time,part_time,contract',
             'is_active'              => 'nullable|boolean',
             'max_capacity'           => 'nullable|integer|min:1|max:100',
@@ -164,6 +186,7 @@ class StaffController extends Controller
             $staff->staffProfile->update([
                 'position'               => $validated['position'] ?? $staff->staffProfile->position,
                 'position_title'         => $validated['position_title'] ?? $staff->staffProfile->position_title,
+                'team'                   => $request->has('team') ? $validated['team'] : $staff->staffProfile->team,
                 'employment_type'        => $validated['employment_type'] ?? $staff->staffProfile->employment_type,
                 'is_active'              => $validated['is_active'] ?? $staff->staffProfile->is_active,
                 'max_capacity'           => $validated['max_capacity'] ?? $staff->staffProfile->max_capacity,
@@ -247,6 +270,7 @@ class StaffController extends Controller
             'branches' => $branches,
             'serviceTypes' => $serviceTypes,
             'positions' => StaffUser::POSITIONS,
+            'teams' => StaffUser::TEAMS,
             'performance' => [
                 'current_month' => $currentMonthPerformance,
                 'previous_month' => $prevMonthPerformance,
