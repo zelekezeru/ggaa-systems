@@ -35,6 +35,15 @@ const evalGradeColor = computed(() => {
     return 'text-rose-500';
 });
 
+const evalGradeLabel = computed(() => {
+    const s = props.evaluation?.overall_score ?? 0;
+    if (s >= 90) return t('grade_outstanding');
+    if (s >= 80) return t('grade_exceeds');
+    if (s >= 70) return t('grade_meets');
+    if (s >= 60) return t('grade_needs_improvement');
+    return t('grade_unsatisfactory');
+});
+
 const evalCatColor = (cat) => ({
     task_performance: 'bg-blue-500', team_project: 'bg-indigo-500', daily_task: 'bg-cyan-500',
     client_satisfaction: 'bg-pink-500', manager_review: 'bg-purple-500', quality_compliance: 'bg-orange-500',
@@ -118,7 +127,7 @@ const pulseMax = computed(() => Math.max(...props.stats.pulse.map(p => p.count),
                             <span class="text-5xl font-black" :class="evalGradeColor">{{ evaluation.overall_score.toFixed(1) }}</span>
                             <span class="text-xl font-bold text-slate-300">%</span>
                         </div>
-                        <span class="text-sm font-bold" :class="evalGradeColor">{{ evaluation.grade }}</span>
+                        <span class="text-sm font-bold" :class="evalGradeColor">{{ evalGradeLabel }}</span>
                     </div>
                 </div>
 

@@ -3,6 +3,7 @@ import { ref, computed, reactive } from 'vue';
 import { Head, router, useForm, Link } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { useToast } from 'vue-toastification';
+import { useI18n } from 'vue-i18n';
 import {
     ChevronLeftIcon, CheckBadgeIcon, BoltIcon, PencilSquareIcon,
     PlusIcon, TrashIcon, LockClosedIcon, ScaleIcon, SparklesIcon,
@@ -10,6 +11,14 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const toast = useToast();
+const { t } = useI18n({ useScope: 'global' });
+
+// Localized category label: prefer the i18n key, fall back to backend-provided label.
+function catLabel(cat, fallback) {
+    const key = 'cat_' + cat;
+    const translated = t(key);
+    return translated === key ? (fallback ?? cat) : translated;
+}
 
 const props = defineProps({
     staff:      { type: Object, required: true },
@@ -58,11 +67,11 @@ function weightShare(line) {
 
 const grade = computed(() => {
     const s = isFinalized.value ? props.evaluation.overall_score : liveOverall.value;
-    if (s >= 90) return { label: 'Outstanding', cls: 'text-emerald-600 dark:text-emerald-400' };
-    if (s >= 80) return { label: 'Exceeds Expectations', cls: 'text-emerald-600 dark:text-emerald-400' };
-    if (s >= 70) return { label: 'Meets Expectations', cls: 'text-blue-600 dark:text-blue-400' };
-    if (s >= 60) return { label: 'Needs Improvement', cls: 'text-amber-600 dark:text-amber-400' };
-    return { label: 'Unsatisfactory', cls: 'text-rose-600 dark:text-rose-400' };
+    if (s >= 90) return { label: t('grade_outstanding'), cls: 'text-emerald-600 dark:text-emerald-400' };
+    if (s >= 80) return { label: t('grade_exceeds'), cls: 'text-emerald-600 dark:text-emerald-400' };
+    if (s >= 70) return { label: t('grade_meets'), cls: 'text-blue-600 dark:text-blue-400' };
+    if (s >= 60) return { label: t('grade_needs_improvement'), cls: 'text-amber-600 dark:text-amber-400' };
+    return { label: t('grade_unsatisfactory'), cls: 'text-rose-600 dark:text-rose-400' };
 });
 
 const displayScore = computed(() => isFinalized.value ? props.evaluation.overall_score : liveOverall.value);
@@ -75,7 +84,7 @@ const grouped = computed(() => {
     }
     return Object.entries(groups).map(([cat, items]) => ({
         category: cat,
-        label: props.categories[cat] ?? cat,
+        label: catLabel(cat, props.categories[cat]),
         items,
     }));
 });
@@ -106,19 +115,19 @@ function saveDraft() {
     saving.value = true;
     router.post(route('super-admin.evaluations.scores', props.evaluation.id), buildPayload(), {
         preserveScroll: true,
-        onSuccess: () => toast.success('Progress saved'),
-        onError: () => toast.error('Could not save — check the scores'),
+        onSuccess: () => toast.success(t('progress_saved')),
+        onError: () => toast.error(t('could_not_save_scores')),
         onFinish: () => saving.value = false,
     });
 }
 
 function finalize() {
-    if (!confirm('Finalize and lock this evaluation? Scores can only be changed by reopening it.')) return;
+    if (!confirm(t('confirm_finalize_evaluation'))) return;
     saving.value = true;
     router.post(route('super-admin.evaluations.finalize', props.evaluation.id), buildPayload(), {
         preserveScroll: true,
-        onSuccess: () => toast.success('Evaluation finalized'),
-        onError: () => toast.error('Could not finalize'),
+        onSuccess: () => toast.success(t('evaluation_finalized')),
+        onError: () => toast.error(t('could_not_finalize')),
         onFinish: () => saving.value = false,
     });
 }
@@ -126,7 +135,7 @@ function finalize() {
 function reopen() {
     router.post(route('super-admin.evaluations.reopen', props.evaluation.id), {}, {
         preserveScroll: true,
-        onSuccess: () => toast.success('Reopened for editing'),
+        onSuccess: () => toast.success(t('reopened_for_editing')),
     });
 }
 
@@ -144,10 +153,10 @@ function toggleActive(item) {
 }
 
 function detach(item) {
-    if (!confirm(`Remove “${item.name}” from this rubric?`)) return;
+    if (!confirm(t('confirm_remove_metric'))) return;
     router.delete(route('super-admin.evaluations.metrics.detach', { staff: props.staff.id, assignment: item.id }), {
         preserveScroll: true,
-        onSuccess: () => toast.success('Metric removed'),
+        onSuccess: () => toast.success(t('metric_removed')),
     });
 }
 
@@ -159,7 +168,7 @@ function attachMetric() {
     if (m) addForm.weight = m.default_weight;
     addForm.post(route('super-admin.evaluations.metrics.attach', props.staff.id), {
         preserveScroll: true,
-        onSuccess: () => { showAddPicker.value = false; addForm.reset(); toast.success('Metric added'); },
+        onSuccess: () => { showAddPicker.value = false; addForm.reset(); toast.success(t('metric_added')); },
     });
 }
 
@@ -169,7 +178,7 @@ const customForm = useForm({ name: '', description: '', category: 'custom', defa
 function createCustom() {
     customForm.post(route('super-admin.evaluation-metrics.store'), {
         preserveScroll: true,
-        onSuccess: () => { showCustom.value = false; customForm.reset(); toast.success('Custom metric created'); },
+        onSuccess: () => { showCustom.value = false; customForm.reset(); toast.success(t('custom_metric_created')); },
     });
 }
 
@@ -183,7 +192,7 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
 
             <Link :href="route('super-admin.evaluations.index', filters)" class="inline-flex items-center text-sm text-slate-500 hover:text-indigo-600 group transition-colors">
                 <ChevronLeftIcon class="h-4 w-4 mr-1 group-hover:-translate-x-1 transition-transform" />
-                Back to evaluations
+                {{ t('back_to_evaluations') }}
             </Link>
 
             <!-- Header / gauge -->
@@ -209,7 +218,7 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
                                 <span class="text-lg font-bold text-gray-400">%</span>
                             </div>
                             <p class="text-xs font-semibold" :class="grade.cls">{{ grade.label }}</p>
-                            <p v-if="!isFinalized" class="text-[10px] text-gray-400 mt-0.5">Live preview</p>
+                            <p v-if="!isFinalized" class="text-[10px] text-gray-400 mt-0.5">{{ t('live_preview') }}</p>
                         </div>
                         <div class="relative w-20 h-20">
                             <svg class="transform -rotate-90 w-20 h-20">
@@ -229,23 +238,23 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
                 <div class="px-6 py-3 bg-gray-50 dark:bg-slate-800/60 border-t border-gray-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-3 text-xs">
                         <span v-if="isFinalized" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold">
-                            <LockClosedIcon class="h-3.5 w-3.5" /> Finalized
-                            <span v-if="evaluation.evaluator" class="font-normal opacity-80">by {{ evaluation.evaluator }}</span>
+                            <LockClosedIcon class="h-3.5 w-3.5" /> {{ t('finalized') }}
+                            <span v-if="evaluation.evaluator" class="font-normal opacity-80">{{ t('evaluated_by') }} {{ evaluation.evaluator }}</span>
                         </span>
                         <span v-else class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-semibold">
-                            <PencilSquareIcon class="h-3.5 w-3.5" /> Draft
+                            <PencilSquareIcon class="h-3.5 w-3.5" /> {{ t('draft') }}
                         </span>
                         <span class="inline-flex items-center gap-1.5 text-gray-500 dark:text-gray-400" :class="weightWarning ? 'text-amber-600 dark:text-amber-400' : ''">
-                            <ScaleIcon class="h-3.5 w-3.5" /> Total weight: {{ totalWeight.toFixed(0) }}%
-                            <span v-if="weightWarning" class="text-[10px]">(normalized to 100%)</span>
+                            <ScaleIcon class="h-3.5 w-3.5" /> {{ t('total_weight') }}: {{ totalWeight.toFixed(0) }}%
+                            <span v-if="weightWarning" class="text-[10px]">{{ t('normalized_note_short') }}</span>
                         </span>
                     </div>
                     <div v-if="canManage" class="flex items-center gap-2">
                         <template v-if="!isFinalized">
-                            <button @click="saveDraft" :disabled="saving" class="px-4 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50">Save Draft</button>
-                            <button @click="finalize" :disabled="saving" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"><CheckBadgeIcon class="h-4 w-4" /> Finalize</button>
+                            <button @click="saveDraft" :disabled="saving" class="px-4 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50">{{ t('save_draft') }}</button>
+                            <button @click="finalize" :disabled="saving" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"><CheckBadgeIcon class="h-4 w-4" /> {{ t('finalize') }}</button>
                         </template>
-                        <button v-else-if="$page.props.auth.user.roles?.some(r => ['Super Admin','Operation Manager'].includes(r))" @click="reopen" class="px-4 py-1.5 rounded-lg text-xs font-semibold border border-amber-300 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">Reopen</button>
+                        <button v-else-if="$page.props.auth.user.roles?.some(r => ['Super Admin','Operation Manager'].includes(r))" @click="reopen" class="px-4 py-1.5 rounded-lg text-xs font-semibold border border-amber-300 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">{{ t('reopen') }}</button>
                     </div>
                 </div>
             </div>
@@ -264,10 +273,10 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2">
                                             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ line.metric_name }}</h3>
-                                            <span v-if="line.is_auto" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300"><BoltIcon class="h-3 w-3" /> Auto</span>
-                                            <span v-else class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"><PencilSquareIcon class="h-3 w-3" /> Manual</span>
+                                            <span v-if="line.is_auto" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300"><BoltIcon class="h-3 w-3" /> {{ t('auto') }}</span>
+                                            <span v-else class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"><PencilSquareIcon class="h-3 w-3" /> {{ t('manual') }}</span>
                                         </div>
-                                        <p class="text-[11px] text-gray-400 mt-0.5">Weight {{ weightShare(line) }}% of total · contributes {{ contribution(line).toFixed(1) }} pts</p>
+                                        <p class="text-[11px] text-gray-400 mt-0.5">{{ t('weight') }} {{ weightShare(line) }}% {{ t('of_total') }} · {{ t('contributes') }} {{ contribution(line).toFixed(1) }} {{ t('points_abbr') }}</p>
                                     </div>
                                     <div class="text-right flex-shrink-0">
                                         <span class="text-lg font-black" :class="normalized(line) >= 70 ? 'text-emerald-600 dark:text-emerald-400' : normalized(line) >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-500'">{{ normalized(line).toFixed(0) }}</span>
@@ -294,7 +303,7 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
                                     v-model="line.justification"
                                     :disabled="isFinalized || !canManage"
                                     rows="1"
-                                    :placeholder="line.is_auto ? 'Auto-computed — add an optional remark…' : 'Justify this score (visible in the record)…'"
+                                    :placeholder="line.is_auto ? t('auto_remark_placeholder') : t('justify_score_placeholder')"
                                     class="w-full text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 px-2.5 py-1.5 text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none resize-none disabled:opacity-70"></textarea>
                             </div>
                         </div>
@@ -302,8 +311,8 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
 
                     <!-- Summary note -->
                     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
-                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Overall Evaluator Summary</label>
-                        <textarea v-model="summaryNote" :disabled="isFinalized || !canManage" rows="3" placeholder="Summarize strengths, areas to improve and development goals for the period…" class="w-full text-sm rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none resize-none disabled:opacity-70"></textarea>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{{ t('overall_evaluator_summary') }}</label>
+                        <textarea v-model="summaryNote" :disabled="isFinalized || !canManage" rows="3" :placeholder="t('evaluator_summary_placeholder')" class="w-full text-sm rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none resize-none disabled:opacity-70"></textarea>
                     </div>
                 </div>
 
@@ -311,13 +320,13 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
                 <div class="space-y-5">
                     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 sticky top-6">
                         <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide flex items-center gap-1.5"><ScaleIcon class="h-4 w-4 text-indigo-500" /> Rubric Weights</h2>
+                            <h2 class="text-sm font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide flex items-center gap-1.5"><ScaleIcon class="h-4 w-4 text-indigo-500" /> {{ t('rubric_weights') }}</h2>
                             <span class="text-xs font-bold px-2 py-0.5 rounded-full" :class="weightWarning ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'">{{ totalWeight.toFixed(0) }}%</span>
                         </div>
 
                         <p class="text-[11px] text-gray-400 mb-4 flex items-start gap-1.5">
                             <InformationCircleIcon class="h-4 w-4 flex-shrink-0 mt-px" />
-                            Weights are normalized to 100% when scoring, so they need not sum exactly.
+                            {{ t('rubric_normalize_note') }}
                         </p>
 
                         <div class="space-y-3">
@@ -337,36 +346,36 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
 
                         <div v-if="canManage && !isFinalized" class="mt-5 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
                             <button @click="showAddPicker = !showAddPicker" :disabled="!available.length" class="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                                <PlusIcon class="h-4 w-4" /> Add metric to rubric
+                                <PlusIcon class="h-4 w-4" /> {{ t('add_metric_to_rubric') }}
                             </button>
 
                             <!-- Add picker -->
                             <div v-if="showAddPicker" class="bg-gray-50 dark:bg-slate-900/50 rounded-xl p-3 space-y-2 border border-gray-100 dark:border-slate-700">
                                 <select v-model="addForm.evaluation_metric_id" class="w-full text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none">
-                                    <option value="">Select a metric…</option>
+                                    <option value="">{{ t('select_a_metric') }}</option>
                                     <option v-for="a in available" :key="a.id" :value="a.id">{{ a.name }} ({{ a.category_label }})</option>
                                 </select>
                                 <div class="flex items-center gap-2">
-                                    <input type="number" min="0.5" max="100" step="0.5" v-model.number="addForm.weight" placeholder="Weight" class="w-20 text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-center text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                    <button @click="attachMetric" :disabled="!addForm.evaluation_metric_id" class="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40">Add</button>
+                                    <input type="number" min="0.5" max="100" step="0.5" v-model.number="addForm.weight" :placeholder="t('weight')" class="w-20 text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-center text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                    <button @click="attachMetric" :disabled="!addForm.evaluation_metric_id" class="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40">{{ t('add') }}</button>
                                 </div>
                             </div>
 
                             <button v-if="canManageMetrics" @click="showCustom = !showCustom" class="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-                                <SparklesIcon class="h-4 w-4" /> Create custom metric
+                                <SparklesIcon class="h-4 w-4" /> {{ t('create_custom_metric') }}
                             </button>
 
                             <!-- Custom metric form -->
                             <div v-if="showCustom" class="bg-gray-50 dark:bg-slate-900/50 rounded-xl p-3 space-y-2 border border-gray-100 dark:border-slate-700">
-                                <input v-model="customForm.name" type="text" placeholder="Metric name" class="w-full text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                <input v-model="customForm.description" type="text" placeholder="Short description" class="w-full text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                <input v-model="customForm.name" type="text" :placeholder="t('metric_name_placeholder')" class="w-full text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                <input v-model="customForm.description" type="text" :placeholder="t('short_description')" class="w-full text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
                                 <div class="flex items-center gap-2">
                                     <select v-model="customForm.category" class="flex-1 text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none">
-                                        <option v-for="(label, key) in categories" :key="key" :value="key">{{ label }}</option>
+                                        <option v-for="(label, key) in categories" :key="key" :value="key">{{ catLabel(key, label) }}</option>
                                     </select>
                                     <input type="number" min="0.5" max="100" step="0.5" v-model.number="customForm.default_weight" class="w-16 text-xs rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1.5 text-center text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" />
                                 </div>
-                                <button @click="createCustom" :disabled="!customForm.name" class="w-full text-xs font-semibold py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-40">Create &amp; add to catalogue</button>
+                                <button @click="createCustom" :disabled="!customForm.name" class="w-full text-xs font-semibold py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-40">{{ t('create_and_add_to_catalogue') }}</button>
                             </div>
                         </div>
                     </div>
@@ -375,10 +384,10 @@ const weightWarning = computed(() => Math.abs(totalWeight.value - 100) > 0.01);
                     <div v-if="isFinalized" class="bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800 p-5">
                         <div class="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 mb-1">
                             <CheckBadgeIcon class="h-5 w-5" />
-                            <span class="text-sm font-bold">Finalized Record</span>
+                            <span class="text-sm font-bold">{{ t('finalized_record') }}</span>
                         </div>
                         <p class="text-xs text-emerald-600 dark:text-emerald-500">
-                            {{ evaluation.evaluator ? 'Evaluated by ' + evaluation.evaluator : '' }}
+                            {{ evaluation.evaluator ? t('evaluated_by') + ' ' + evaluation.evaluator : '' }}
                             <span v-if="evaluation.finalized_at">· {{ new Date(evaluation.finalized_at).toLocaleDateString() }}</span>
                         </p>
                     </div>

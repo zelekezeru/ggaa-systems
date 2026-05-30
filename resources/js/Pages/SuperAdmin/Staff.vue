@@ -32,6 +32,7 @@ const props = defineProps({
     branches: Array,
     serviceTypes: Array,
     positions: Object,
+    teams: { type: Object, default: () => ({}) },
 });
 
 const viewMode = ref('list');
@@ -64,8 +65,9 @@ const form = useForm({
     password_confirmation: '',
     profile_photo: null,
     user_type: 'staff',          // 'staff' | 'client'
-    position: 'employee',         // staff role
+    position: 'junior_accountant', // staff position (org-chart taxonomy)
     position_title: '',
+    team: '',
     employment_type: 'full_time',
     hire_date: '',
     client_id: '',                // for user_type === 'client'
@@ -82,8 +84,9 @@ const openModal = (employee = null) => {
         form.password = '';
         form.password_confirmation = '';
         form.user_type = 'staff';
-        form.position = employee.staff_profile?.position || 'employee';
+        form.position = employee.staff_profile?.position || 'junior_accountant';
         form.position_title = employee.staff_profile?.position_title || '';
+        form.team = employee.staff_profile?.team || '';
         form.employment_type = employee.staff_profile?.employment_type || 'full_time';
         form.hire_date = employee.staff_profile?.hire_date || '';
     } else {
@@ -91,7 +94,8 @@ const openModal = (employee = null) => {
         form.reset();
         form.service_type_ids = [];
         form.user_type = 'staff';
-        form.position = 'employee';
+        form.position = 'junior_accountant';
+        form.team = '';
         form.employment_type = 'full_time';
     }
     isModalOpen.value = true;
@@ -381,6 +385,13 @@ const getCapacityColor = (percentage) => {
                         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Title (optional)</label>
                         <input v-model="form.position_title" type="text" placeholder="e.g. Senior Tax Specialist"
                             class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Operational team (optional)</label>
+                        <select v-model="form.team" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                            <option value="">None</option>
+                            <option v-for="(label, key) in teams" :key="key" :value="key">{{ label }}</option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Employment type</label>
