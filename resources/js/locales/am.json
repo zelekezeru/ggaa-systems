@@ -383,6 +383,8 @@
     "update_link": "አገናኝ አዘምን",
     "link_sheet": "ሺት አገናኝ",
     "no_sheet_linked_hint": "እስካሁን የተገናኘ ጉግል ሺት የለም። የደንበኛውን ሺት URL ከላይ ለጥፉ እና ከአገልግሎት መለያው ጋር አጋሩ።",
+    "fullscreen": "ሙሉ ማያ",
+    "exit_fullscreen": "ከሙሉ ማያ ውጣ",
     "download_template": "ቴምፕሌት አውርድ",
     "apply_template": "ቴምፕሌት ተግብር",
     "applying": "በመተግበር ላይ…",

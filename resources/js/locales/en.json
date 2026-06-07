@@ -381,6 +381,8 @@
     "update_link": "Update Link",
     "link_sheet": "Link Sheet",
     "no_sheet_linked_hint": "No Google Sheet linked yet. Paste the client's sheet URL above and share it with the service account to enable syncing.",
+    "fullscreen": "Full screen",
+    "exit_fullscreen": "Exit full screen",
     "download_template": "Download Template",
     "apply_template": "Apply Template",
     "applying": "Applying…",

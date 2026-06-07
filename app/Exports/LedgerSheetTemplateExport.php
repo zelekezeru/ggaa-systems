@@ -3,47 +3,27 @@
 namespace App\Exports;
 
 use App\Models\Client;
-use App\Models\MonthlyLedger;
+use App\Support\LedgerSheetLayout;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 
 /**
- * Generates the system-compatible Google Sheets entry template for a client.
+ * Generates the client ledger template in the firm's real format:
+ * months across the columns (Hamle→Sene fiscal year), line-items down the
+ * rows, with computed rows (Total Sales, COGS, Gross/Net Profit, Tax, bank
+ * roll-forward) written as live formulas, plus the client's registered bank
+ * accounts and a Monthly VAT Report block.
  *
- * The header row uses labels that the sync mapping (config/ledger_sheet.php)
- * resolves to MonthlyLedger fields, so a sheet built from this template is
- * guaranteed readable by "Sync from Sheet". One pre-filled row per Ethiopian
- * month; staff only fill the numeric cells.
- *
- * The worksheet is titled "Ledger" so that importing the file into Google
- * Sheets yields a tab matching GOOGLE_SHEETS_TAB.
+ * Worksheet title is "Ledger" so importing/applying yields the tab the sync
+ * reads.
  */
 class LedgerSheetTemplateExport implements FromArray, WithTitle, WithEvents
 {
-    /**
-     * Ordered header labels. Each must normalise to a field in the sync config.
-     * Keep in sync with config/ledger_sheet.php aliases.
-     */
-    public const HEADERS = [
-        'Month', 'Year',
-        'Cash Machine Sales', 'Cash Start', 'Cash End',
-        'Manual Sales', 'Manual Start', 'Manual End',
-        'Beginning Inventory', 'Purchases', 'Ending Inventory',
-        'Units Start', 'Units End', 'Units Sold',
-        'Salary', 'Pension', 'Printing', 'Shed Rent', 'Stationery',
-        'Office Rent', 'Transport', 'Machine FA', 'EEU', 'Maintenance',
-        'Advertising', 'Uniform', 'Indirect Materials', 'Depreciation',
-        'Legal Fee', 'Bank Interest', 'Bank Service Charge',
-        'Sales VAT', 'Purchase VAT', 'Withholding Tax',
-        'Tax Rate', 'Notes', 'Custom: Example',
-    ];
-
     public function __construct(
         protected Client $client,
-        protected int $ethYear,
-        protected float $defaultTaxRate = 35.0,
+        protected int $fiscalStartYear,
     ) {}
 
     public function title(): string
@@ -53,58 +33,132 @@ class LedgerSheetTemplateExport implements FromArray, WithTitle, WithEvents
 
     public function array(): array
     {
-        return self::templateRows($this->ethYear, $this->defaultTaxRate);
+        return self::grid($this->client, $this->fiscalStartYear);
     }
 
     /**
-     * Single source of truth for the template grid (header row + one row per
-     * Ethiopian month). Reused both by the XLSX download and by the Google
-     * Sheets writer that injects the template into a linked workbook.
+     * Build the full 2-D grid (header + rows + VAT block). Shared by the XLSX
+     * download and the Google Sheets writer.
      *
      * @return array<int, array<int, string|int|float>>
      */
-    public static function templateRows(int $ethYear, float $defaultTaxRate = 35.0): array
+    public static function grid(Client $client, int $fiscalStartYear): array
     {
-        $rows  = [self::HEADERS];
-        $width = count(self::HEADERS);
-        $taxIx = array_search('Tax Rate', self::HEADERS, true);
+        $months    = LedgerSheetLayout::monthColumns($fiscalStartYear);
+        $vatMonths = LedgerSheetLayout::monthColumns($fiscalStartYear - 1);
+        $pnl       = LedgerSheetLayout::rows($client);
 
-        foreach (MonthlyLedger::ethiopianMonths() as $month) {
-            $row         = array_fill(0, $width, '');
-            $row[0]      = $month;           // Month
-            $row[1]      = $ethYear;         // Year
-            $row[$taxIx] = $defaultTaxRate;  // sensible default
-            $rows[]      = $row;
+        $n      = count($months);
+        $firstC = 2;                 // column B (A holds row labels)
+        $lastC  = $firstC + $n - 1;
+        $totalC = $lastC + 1;
+        $firstL = LedgerSheetLayout::colLetter($firstC);
+        $lastL  = LedgerSheetLayout::colLetter($lastC);
+
+        // ── Pass 1: assign spreadsheet row numbers + collect formula refs ──
+        $rowNo = 1; // header occupies row 1
+        $ref = [];          // 'field:x' | 'calc:x' => row number
+        $expRows = [];      // expense input rows
+        $bankRows = [];     // bank balance rows
+        $movRows = [];      // bank movement rows
+        foreach ($pnl as $i => $r) {
+            $rn = ++$rowNo;
+            $pnl[$i]['_rn'] = $rn;
+            $kind = $r['kind'];
+            if ($kind === 'input') {
+                $ref['field:' . $r['field']] = $rn;
+                if (isset(LedgerSheetLayout::EXPENSE_FIELDS[$r['field']])) $expRows[] = $rn;
+                if (str_starts_with($r['field'], 'mov:')) $movRows[] = $rn;
+            } elseif ($kind === 'computed') {
+                $ref['calc:' . $r['calc']] = $rn;
+            } elseif ($kind === 'bank_balance') {
+                $bankRows[] = $rn;
+            }
         }
 
-        return $rows;
+        $sumRow = fn (int $rn) => "=SUM({$firstL}{$rn}:{$lastL}{$rn})";
+
+        // ── Header ──
+        $grid = [];
+        $grid[] = array_merge(['Ref'], array_column($months, 'label'), ['Total']);
+
+        // ── P&L + bank rows ──
+        foreach ($pnl as $r) {
+            $line = array_fill(0, $totalC, '');
+            $line[0] = $r['label'];
+            $rn = $r['_rn'];
+
+            if ($r['kind'] === 'section' || $r['kind'] === 'blank') {
+                $grid[] = $line;
+                continue;
+            }
+
+            if ($r['kind'] === 'input' || $r['kind'] === 'bank_balance') {
+                $line[$totalC - 1] = $sumRow($rn);   // months blank for entry
+                $grid[] = $line;
+                continue;
+            }
+
+            // computed → per-month formula + row total
+            for ($c = $firstC; $c <= $lastC; $c++) {
+                $line[$c - 1] = self::formula($r['calc'], LedgerSheetLayout::colLetter($c), $ref, $expRows, $bankRows, $movRows);
+            }
+            $line[$totalC - 1] = $r['calc'] === 'balance' ? '' : $sumRow($rn);
+            $grid[] = $line;
+        }
+
+        // ── Monthly VAT Report block (its own month header, one year back) ──
+        $grid[] = array_fill(0, $totalC, '');
+        $vatTitle = array_fill(0, $totalC, '');
+        $vatTitle[0] = 'Monthly VAT REPORT';
+        $grid[] = $vatTitle;
+        $grid[] = array_merge([''], array_column($vatMonths, 'label'), ['Total']);
+
+        foreach (LedgerSheetLayout::vatRows() as $vr) {
+            $line = array_fill(0, $totalC, '');
+            $line[0] = $vr['label'];
+            $rn = count($grid) + 1; // 1-based row of the line being pushed
+            $line[$totalC - 1] = $sumRow($rn);
+            $grid[] = $line;
+        }
+
+        return $grid;
+    }
+
+    /** Build a computed-cell formula for column letter $cl. */
+    private static function formula(string $calc, string $cl, array $ref, array $expRows, array $bankRows, array $movRows): string
+    {
+        $f = fn (string $key) => $cl . ($ref[$key] ?? 1);
+
+        return match ($calc) {
+            'total_sales'        => "={$f('field:cash_machine_sales')}+{$f('field:manual_sales')}",
+            'available'          => "={$f('field:beginning_inventory')}+{$f('field:purchases')}",
+            'cogs'               => "={$f('calc:available')}-{$f('field:ending_inventory')}",
+            'gross'              => "={$f('calc:total_sales')}-{$f('calc:cogs')}",
+            'total_expense'      => $expRows ? "=SUM({$cl}" . min($expRows) . ":{$cl}" . max($expRows) . ")" : '0',
+            'net_profit'         => "={$f('calc:gross')}-{$f('calc:total_expense')}",
+            'tax'                => "=MAX(0,{$f('calc:net_profit')}*0.35-24600)",
+            'profit_tax_payable' => "={$f('calc:tax')}-{$f('field:withholding_tax')}",
+            'bank_sum'           => $bankRows ? "=SUM({$cl}" . min($bankRows) . ":{$cl}" . max($bankRows) . ")" : '0',
+            'loan_total'         => $movRows ? "=SUM({$cl}" . min($movRows) . ":{$cl}" . max($movRows) . ")" : '0',
+            'net_cash'           => "={$f('calc:bank_sum')}+{$f('calc:loan_total')}",
+            default              => '',
+        };
     }
 
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $sheet    = $event->sheet->getDelegate();
-                $lastCol  = $sheet->getHighestColumn();
-                $lastRow  = $sheet->getHighestRow();
+                $sheet   = $event->sheet->getDelegate();
+                $lastCol = $sheet->getHighestColumn();
 
-                // Bold + colour the header row, then freeze it.
                 $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
                 $sheet->getStyle("A1:{$lastCol}1")->getFill()
                     ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB('D1FAE5');
-                $sheet->freezePane('A2');
-
-                // Auto-size every column for readability.
-                foreach (range('A', $lastCol) as $col) {
-                    $sheet->getColumnDimension($col)->setAutoSize(true);
-                }
-
-                // Protect the Month + Year columns visually (they're pre-filled);
-                // a light grey fill signals "don't edit these".
-                $sheet->getStyle("A2:B{$lastRow}")->getFill()
-                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB('F3F4F6');
+                    ->getStartColor()->setRGB('FCE8B2');
+                $sheet->freezePane('B2');
+                $sheet->getColumnDimension('A')->setWidth(32);
             },
         ];
     }

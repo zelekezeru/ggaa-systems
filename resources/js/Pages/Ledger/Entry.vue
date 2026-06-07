@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
@@ -13,6 +13,7 @@ import {
     LockClosedIcon, LockOpenIcon, ArrowPathIcon,
     TicketIcon, CubeIcon, EyeIcon, EyeSlashIcon, TrashIcon,
     TableCellsIcon, LinkIcon, ArrowTopRightOnSquareIcon,
+    ArrowsPointingOutIcon, ArrowsPointingInIcon,
 } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
@@ -465,6 +466,23 @@ function applyTemplate() {
     });
 }
 
+// Full-screen the embedded sheet so it's comfortable to work in.
+const isSheetFullscreen = ref(false);
+function toggleSheetFullscreen() {
+    isSheetFullscreen.value = !isSheetFullscreen.value;
+    if (isSheetFullscreen.value) showSheet.value = true;
+}
+const sheetIframeStyle = computed(() => ({
+    border: 0,
+    width: '100%',
+    height: isSheetFullscreen.value ? 'calc(100vh - 170px)' : '520px',
+}));
+function onSheetEsc(e) {
+    if (e.key === 'Escape' && isSheetFullscreen.value) isSheetFullscreen.value = false;
+}
+onMounted(() => window.addEventListener('keydown', onSheetEsc));
+onUnmounted(() => window.removeEventListener('keydown', onSheetEsc));
+
 // ── Bank balance helper ──
 function bankBalanceFor(accountId) {
     if (!form.bank_balances[accountId]) {
@@ -509,73 +527,19 @@ const verificationUrl = computed(() => {
     return window.location.origin + '/ledger/' + props.client.id + '/verify-report/' + existing.value.id;
 });
 
-const loadHtml2Pdf = () => {
-    return new Promise((resolve) => {
-        if (window.html2pdf) {
-            resolve(window.html2pdf);
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        script.onload = () => resolve(window.html2pdf);
-        document.head.appendChild(script);
-    });
-};
-
-const exportLedgerToPDF = async () => {
+// Server-rendered PDF — deterministic and always contains the data
+// (the client-side html2canvas capture produced blank pages).
+const exportLedgerToPDF = () => {
     if (!existing.value || existing.value.status !== 'verified') {
         toast.warning('Only verified and approved monthly ledger reports can be exported to PDF.');
         return;
     }
 
     isExportingPDF.value = true;
-    toast.info('Generating secure PDF report with verifiable QR code...');
-
-    try {
-        const html2pdf = await loadHtml2Pdf();
-        const element = document.getElementById('ledger-pdf-print-template');
-        if (!element) {
-            toast.error('Print template not found.');
-            isExportingPDF.value = false;
-            return;
-        }
-
-        // Wait for all dynamic images inside the template to finish downloading
-        const images = element.getElementsByTagName('img');
-        const promises = [];
-        for (let i = 0; i < images.length; i++) {
-            const img = images[i];
-            if (!img.complete) {
-                promises.push(new Promise((resolve) => {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                }));
-            }
-        }
-
-        const runPdf = async () => {
-            const opt = {
-                margin:       [0.4, 0.4, 0.4, 0.4],
-                filename:     `GGAA_Ledger_${props.client.company_name}_${selectedMonth.value}_${selectedYear.value}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, allowTaint: true, logging: false },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-
-            await html2pdf().from(element).set(opt).save();
-            toast.success('Official PDF Ledger Report exported successfully.');
-        };
-
-        if (promises.length > 0) {
-            await Promise.all(promises);
-        }
-        await runPdf();
-    } catch (err) {
-        console.error(err);
-        toast.error('Failed to export PDF report.');
-    } finally {
-        isExportingPDF.value = false;
-    }
+    toast.info('Preparing the verified ledger report…');
+    // Triggers a file download without navigating away from the page.
+    window.location.href = route('ledger.download.pdf', existing.value.id);
+    setTimeout(() => { isExportingPDF.value = false; }, 2000);
 };
 </script>
 
@@ -638,7 +602,8 @@ const exportLedgerToPDF = async () => {
             </div>
 
             <!-- ── Google Sheet (raw-data source) ── -->
-            <div class="mb-6 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div class="mb-6 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden"
+                 :class="{ 'fixed inset-0 z-[60] m-0 mb-0 rounded-none overflow-auto': isSheetFullscreen }">
                 <div class="flex items-center justify-between gap-2 px-5 py-3 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/30">
                     <div class="flex items-center gap-2">
                         <TableCellsIcon class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -666,7 +631,14 @@ const exportLedgerToPDF = async () => {
                             <ArrowPathIcon class="h-3.5 w-3.5" :class="{ 'animate-spin': isSyncing }" />
                             {{ isSyncing ? t('syncing') : t('sync_from_sheet') }}
                         </button>
-                        <button type="button" @click="showSheet = !showSheet"
+                        <button v-if="client.google_sheet_id" type="button" @click="toggleSheetFullscreen"
+                                :title="isSheetFullscreen ? t('exit_fullscreen') : t('fullscreen')"
+                                class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-emerald-600 dark:text-slate-400">
+                            <ArrowsPointingInIcon v-if="isSheetFullscreen" class="h-4 w-4" />
+                            <ArrowsPointingOutIcon v-else class="h-4 w-4" />
+                            <span class="hidden sm:inline">{{ isSheetFullscreen ? t('exit_fullscreen') : t('fullscreen') }}</span>
+                        </button>
+                        <button v-if="!isSheetFullscreen" type="button" @click="showSheet = !showSheet"
                                 class="text-xs font-medium text-gray-500 hover:text-emerald-600 dark:text-slate-400">
                             {{ showSheet ? t('hide') : t('show') }}
                         </button>
@@ -698,7 +670,7 @@ const exportLedgerToPDF = async () => {
                             {{ t('sheet_month_locked', { month: t(selectedMonth.toLowerCase()), year: selectedYear }) }}
                         </div>
                         <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700">
-                            <iframe :src="sheetEmbedUrl" class="w-full" style="height: 520px; border: 0;"
+                            <iframe :src="sheetEmbedUrl" class="w-full block" :style="sheetIframeStyle"
                                     title="Client ledger sheet"></iframe>
                         </div>
                     </div>

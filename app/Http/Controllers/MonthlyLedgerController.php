@@ -221,7 +221,7 @@ class MonthlyLedgerController extends Controller
             $sheets->applyTemplate(
                 $client->google_sheet_id,
                 config('ledger_sheet.tab', 'Ledger'),
-                LedgerSheetTemplateExport::templateRows($this->currentEthYear())
+                LedgerSheetTemplateExport::grid($client, $this->fiscalStartYear())
             );
         } catch (\Throwable $e) {
             return back()->with('error', 'Could not apply template: ' . $e->getMessage());
@@ -244,7 +244,7 @@ class MonthlyLedgerController extends Controller
             $sheets->applyTemplate(
                 $client->google_sheet_id,
                 $tab,
-                LedgerSheetTemplateExport::templateRows($this->currentEthYear())
+                LedgerSheetTemplateExport::grid($client, $this->fiscalStartYear())
             );
 
             return true;
@@ -262,11 +262,12 @@ class MonthlyLedgerController extends Controller
     {
         abort_unless($client->exists, 403);
 
+        $fy = $this->fiscalStartYear();
         $filename = 'Ledger_Template_' . preg_replace('/\s+/', '_', $client->company_name)
-            . '_' . $this->currentEthYear() . '.xlsx';
+            . '_' . $fy . '-' . ($fy + 1) . '.xlsx';
 
         return Excel::download(
-            new LedgerSheetTemplateExport($client, $this->currentEthYear()),
+            new LedgerSheetTemplateExport($client, $fy),
             $filename
         );
     }
@@ -430,5 +431,14 @@ class MonthlyLedgerController extends Controller
             $ethYear--;
         }
         return $ethYear;
+    }
+
+    /**
+     * Fiscal year start (Hamle) for the sheet template — the most recently
+     * started fiscal year, so columns run Hamle {start} → Sene {start+1}.
+     */
+    private function fiscalStartYear(): int
+    {
+        return $this->currentEthYear() - 1;
     }
 }
