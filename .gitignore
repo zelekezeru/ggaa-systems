@@ -13,7 +13,8 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# /public/build is committed so cPanel (no Node build step) gets assets via git pull.
+# Rebuild with `npm run build` and commit the result whenever frontend changes.
 /public/hot
 /public/storage
 /storage/*.key
