@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Exports\LedgerReportExport;
+use App\Exports\LedgerSheetTemplateExport;
 use App\Models\BankAccount;
 use App\Models\BankAccountBalance;
 use App\Models\Client;
 use App\Models\MonthlyLedger;
+use App\Services\GoogleSheetsClient;
+use App\Services\LedgerSheetSyncService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -72,7 +75,10 @@ class MonthlyLedgerController extends Controller
                 'tin_number'   => $client->tin_number,
                 'email'        => $client->user?->email,
                 'email_verified' => !!$client->user?->email_verified_at,
+                'google_sheet_id' => $client->google_sheet_id,
+                'sheet_synced_at' => $client->sheet_synced_at,
             ],
+            'canLinkSheet'    => $user->hasAnyRole(['Super Admin', 'Operation Manager', 'Branch Manager']),
             'ledgers'         => $ledgers,
             'bankAccounts'    => $bankAccounts,
             'ethiopianMonths' => MonthlyLedger::ethiopianMonths(),
@@ -157,6 +163,133 @@ class MonthlyLedgerController extends Controller
         ]);
 
         return back()->with('success', 'Entry verified.');
+    }
+
+    /**
+     * Link (or update) the client's Google Sheet workbook. Accepts a full
+     * sheet URL or a bare spreadsheet ID and stores the extracted ID.
+     */
+    public function linkSheet(Request $request, Client $client)
+    {
+        abort_unless($client->exists, 403);
+        abort_unless(Auth::user()->hasAnyRole(['Super Admin', 'Operation Manager', 'Branch Manager']), 403);
+
+        $validated = $request->validate([
+            'google_sheet_id' => 'nullable|string|max:255',
+        ]);
+
+        $raw = trim((string) ($validated['google_sheet_id'] ?? ''));
+
+        if ($raw === '') {
+            $client->update(['google_sheet_id' => null]);
+            return back()->with('success', 'Google Sheet unlinked.');
+        }
+
+        // Extract the ID from a pasted URL like
+        // https://docs.google.com/spreadsheets/d/<ID>/edit
+        if (preg_match('#/spreadsheets/d/([a-zA-Z0-9-_]+)#', $raw, $m)) {
+            $raw = $m[1];
+        }
+
+        $client->update(['google_sheet_id' => $raw]);
+
+        // Automatically lay down the entry template if the sheet is still empty,
+        // so staff get the correct columns without any manual setup.
+        $applied = $this->maybeAutoApplyTemplate($client);
+
+        $msg = $applied
+            ? 'Google Sheet linked and the entry template was applied automatically.'
+            : 'Google Sheet linked. Use "Apply Template" to set up the entry columns.';
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Write the system entry template (header + month rows) into the linked
+     * Google Sheet. Requires the service account to have Editor access.
+     */
+    public function applySheetTemplate(Client $client)
+    {
+        abort_unless($client->exists, 403);
+
+        if (empty($client->google_sheet_id)) {
+            return back()->with('error', 'Link a Google Sheet first, then apply the template.');
+        }
+
+        try {
+            $sheets = new GoogleSheetsClient();
+            $sheets->applyTemplate(
+                $client->google_sheet_id,
+                config('ledger_sheet.tab', 'Ledger'),
+                LedgerSheetTemplateExport::templateRows($this->currentEthYear())
+            );
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Could not apply template: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Entry template applied to the sheet. Staff can now fill in the monthly figures.');
+    }
+
+    /** Best-effort auto-apply on link; never blocks linking if it fails. */
+    private function maybeAutoApplyTemplate(Client $client): bool
+    {
+        try {
+            $sheets = new GoogleSheetsClient();
+            $tab    = config('ledger_sheet.tab', 'Ledger');
+
+            if (! $sheets->tabIsEmptyOrMissing($client->google_sheet_id, $tab)) {
+                return false; // don't clobber existing data
+            }
+
+            $sheets->applyTemplate(
+                $client->google_sheet_id,
+                $tab,
+                LedgerSheetTemplateExport::templateRows($this->currentEthYear())
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+            return false;
+        }
+    }
+
+    /**
+     * Download the system-compatible entry template (XLSX) for this client.
+     * Staff import it into Google Sheets to guarantee the sync can read it.
+     */
+    public function downloadSheetTemplate(Client $client)
+    {
+        abort_unless($client->exists, 403);
+
+        $filename = 'Ledger_Template_' . preg_replace('/\s+/', '_', $client->company_name)
+            . '_' . $this->currentEthYear() . '.xlsx';
+
+        return Excel::download(
+            new LedgerSheetTemplateExport($client, $this->currentEthYear()),
+            $filename
+        );
+    }
+
+    /**
+     * Pull raw figures from the linked Google Sheet into MonthlyLedger rows.
+     */
+    public function syncSheet(Client $client, LedgerSheetSyncService $sync)
+    {
+        abort_unless($client->exists, 403);
+
+        try {
+            $result = $sync->sync($client);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Sheet sync failed: ' . $e->getMessage());
+        }
+
+        $msg = "Sheet synced — {$result['created']} added, {$result['updated']} updated, {$result['skipped']} skipped.";
+        if (! empty($result['errors'])) {
+            $msg .= ' Issues: ' . implode(' ', array_slice($result['errors'], 0, 5));
+        }
+
+        return back()->with(empty($result['errors']) ? 'success' : 'warning', $msg);
     }
 
     public function storeBankAccount(Request $request, Client $client)

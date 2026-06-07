@@ -31,7 +31,7 @@ onMounted(() => {
     if (savedTheme === 'light') {
         isDark.value = false;
     }
-    const savedLocale = localStorage.getItem('locale') || 'am';
+    const savedLocale = localStorage.getItem('locale') || 'en';
     locale.value = savedLocale;
 });
 

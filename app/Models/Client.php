@@ -9,7 +9,11 @@ use Illuminate\Support\Facades\Auth;
 class Client extends Model
 {
     protected $guarded = [];
-    
+
+    protected $casts = [
+        'email_password' => 'encrypted', // client login password — encrypted at rest
+    ];
+
     protected $appends = [
         'logo_url',
     ];

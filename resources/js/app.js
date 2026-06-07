@@ -15,7 +15,16 @@ import am from './locales/am.json';
 
 const RTL_LOCALES = ['am'];
 
-const initialLocale = localStorage.getItem('locale') || 'am';
+// One-time reset: default everyone to English, clearing any previously saved
+// locale (e.g. legacy 'am') exactly once. After this, a user's own language
+// choice via the switcher persists normally.
+const LOCALE_RESET_KEY = 'locale_default_en_v1';
+if (!localStorage.getItem(LOCALE_RESET_KEY)) {
+    localStorage.setItem('locale', 'en');
+    localStorage.setItem(LOCALE_RESET_KEY, '1');
+}
+
+const initialLocale = localStorage.getItem('locale') || 'en';
 
 const i18n = createI18n({
     legacy: false, // Use Composition API mode

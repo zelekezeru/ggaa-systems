@@ -278,6 +278,16 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/ledger/clients/{client}/bank-accounts', [MonthlyLedgerController::class, 'storeBankAccount'])
         ->middleware('can:enter ledger data')->name('ledger.bank-accounts.store');
 
+    // Google Sheets: link a client's workbook and sync raw figures from it
+    Route::put('/ledger/clients/{client}/sheet', [MonthlyLedgerController::class, 'linkSheet'])
+        ->middleware('can:enter ledger data')->name('ledger.sheet.link');
+    Route::post('/ledger/clients/{client}/sheet/sync', [MonthlyLedgerController::class, 'syncSheet'])
+        ->middleware('can:enter ledger data')->name('ledger.sheet.sync');
+    Route::get('/ledger/clients/{client}/sheet/template', [MonthlyLedgerController::class, 'downloadSheetTemplate'])
+        ->middleware('can:enter ledger data')->name('ledger.sheet.template');
+    Route::post('/ledger/clients/{client}/sheet/apply', [MonthlyLedgerController::class, 'applySheetTemplate'])
+        ->middleware('can:enter ledger data')->name('ledger.sheet.apply');
+
     // Downloads (verified ledger only — enforced in controller via the model scope for Clients)
     Route::get('/ledger/entries/{ledger}/download/pdf', [MonthlyLedgerController::class, 'downloadPdf'])
         ->middleware('can:download ledger reports')->name('ledger.download.pdf');

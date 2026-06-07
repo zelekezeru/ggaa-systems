@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Google Sheets — service-account auth for reading client ledger workbooks.
+    // GOOGLE_SERVICE_ACCOUNT_JSON: absolute path to the service-account key file,
+    // stored OUTSIDE the web root (never inside public/ and never committed).
+    'google' => [
+        'service_account_json' => env('GOOGLE_SERVICE_ACCOUNT_JSON'),
+        'sheets_read_range'    => env('GOOGLE_SHEETS_READ_RANGE', 'Ledger!A1:ZZ500'),
+    ],
+
 ];

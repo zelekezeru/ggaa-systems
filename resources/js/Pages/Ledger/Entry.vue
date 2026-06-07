@@ -12,6 +12,7 @@ import {
     BuildingLibraryIcon, ReceiptPercentIcon, PlusIcon,
     LockClosedIcon, LockOpenIcon, ArrowPathIcon,
     TicketIcon, CubeIcon, EyeIcon, EyeSlashIcon, TrashIcon,
+    TableCellsIcon, LinkIcon, ArrowTopRightOnSquareIcon,
 } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
@@ -26,6 +27,7 @@ const props = defineProps({
     ethiopianMonths: Array,
     currentEthYear: Number,
     canVerify: Boolean,
+    canLinkSheet: Boolean,
 });
  
 const page = usePage();
@@ -402,6 +404,67 @@ function resetPortalPassword() {
     });
 }
 
+// ── Google Sheets integration ──
+const showSheet  = ref(!!props.client.google_sheet_id);
+const isSyncing  = ref(false);
+const sheetInput = ref(props.client.google_sheet_id || '');
+const linkingSheet = ref(false);
+
+const sheetEmbedUrl = computed(() => {
+    if (!props.client.google_sheet_id) return '';
+    // Editable embed: works for users signed into a Google account that has
+    // edit access to the workbook; otherwise it renders read-only.
+    return `https://docs.google.com/spreadsheets/d/${props.client.google_sheet_id}/edit?widget=true&headers=true`;
+});
+
+const sheetOpenUrl = computed(() =>
+    props.client.google_sheet_id
+        ? `https://docs.google.com/spreadsheets/d/${props.client.google_sheet_id}/edit`
+        : ''
+);
+
+const templateUrl = computed(() => route('ledger.sheet.template', props.client.id));
+
+// When a sheet is the entry surface, the in-app ledger fields become a
+// read-only report of the synced values. Managers can still hand-edit a
+// verified month via the existing unlock toggle (isEditMode).
+const sheetLinked = computed(() => !!props.client.google_sheet_id);
+const reportMode  = computed(() => sheetLinked.value && !isEditMode.value);
+
+// Stage-aware: the selected month is locked from sync once verified.
+const currentVerified = computed(() => existing.value?.status === 'verified');
+
+function syncSheet() {
+    if (isSyncing.value) return;
+    isSyncing.value = true;
+    router.post(route('ledger.sheet.sync', props.client.id), {}, {
+        preserveScroll: true,
+        onSuccess: () => loadEntry(),     // refresh form from freshly-synced data
+        onFinish: () => { isSyncing.value = false; },
+    });
+}
+
+function saveSheetLink() {
+    linkingSheet.value = true;
+    router.put(route('ledger.sheet.link', props.client.id),
+        { google_sheet_id: sheetInput.value },
+        {
+            preserveScroll: true,
+            onFinish: () => { linkingSheet.value = false; },
+        }
+    );
+}
+
+const applyingTemplate = ref(false);
+function applyTemplate() {
+    if (!confirm(t('apply_template_confirm'))) return;
+    applyingTemplate.value = true;
+    router.post(route('ledger.sheet.apply', props.client.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { applyingTemplate.value = false; },
+    });
+}
+
 // ── Bank balance helper ──
 function bankBalanceFor(accountId) {
     if (!form.bank_balances[accountId]) {
@@ -574,10 +637,90 @@ const exportLedgerToPDF = async () => {
                 </button>
             </div>
 
+            <!-- ── Google Sheet (raw-data source) ── -->
+            <div class="mb-6 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div class="flex items-center justify-between gap-2 px-5 py-3 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/30">
+                    <div class="flex items-center gap-2">
+                        <TableCellsIcon class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <h2 class="text-sm font-semibold text-emerald-900 dark:text-emerald-300 uppercase tracking-wide">{{ t('google_sheet') }}</h2>
+                        <span v-if="client.sheet_synced_at" class="text-[11px] text-gray-400 dark:text-slate-500">
+                            {{ t('last_synced') }}: {{ new Date(client.sheet_synced_at).toLocaleString() }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a :href="templateUrl"
+                           class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400">
+                            <TableCellsIcon class="h-3.5 w-3.5" /> {{ t('download_template') }}
+                        </a>
+                        <a v-if="client.google_sheet_id" :href="sheetOpenUrl" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400">
+                            <ArrowTopRightOnSquareIcon class="h-3.5 w-3.5" /> {{ t('open_in_sheets') }}
+                        </a>
+                        <button v-if="canLinkSheet && client.google_sheet_id" type="button" @click="applyTemplate" :disabled="applyingTemplate"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors">
+                            <TableCellsIcon class="h-3.5 w-3.5" />
+                            {{ applyingTemplate ? t('applying') : t('apply_template') }}
+                        </button>
+                        <button v-if="client.google_sheet_id" type="button" @click="syncSheet" :disabled="isSyncing"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors">
+                            <ArrowPathIcon class="h-3.5 w-3.5" :class="{ 'animate-spin': isSyncing }" />
+                            {{ isSyncing ? t('syncing') : t('sync_from_sheet') }}
+                        </button>
+                        <button type="button" @click="showSheet = !showSheet"
+                                class="text-xs font-medium text-gray-500 hover:text-emerald-600 dark:text-slate-400">
+                            {{ showSheet ? t('hide') : t('show') }}
+                        </button>
+                    </div>
+                </div>
+
+                <div v-show="showSheet" class="p-4">
+                    <!-- Link / configure the workbook -->
+                    <div v-if="canLinkSheet" class="flex items-center gap-2 mb-3">
+                        <div class="relative flex-1">
+                            <LinkIcon class="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input v-model="sheetInput" type="text" :placeholder="t('paste_sheet_url_or_id')"
+                                   class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        </div>
+                        <button type="button" @click="saveSheetLink" :disabled="linkingSheet"
+                                class="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-60">
+                            {{ client.google_sheet_id ? t('update_link') : t('link_sheet') }}
+                        </button>
+                    </div>
+
+                    <!-- Embedded editable sheet -->
+                    <div v-if="client.google_sheet_id">
+                        <div class="flex items-start gap-2 mb-3 text-xs text-gray-500 dark:text-slate-400 bg-emerald-50/60 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-lg px-3 py-2">
+                            <TableCellsIcon class="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            <span>{{ t('sheet_format_hint') }}</span>
+                        </div>
+                        <div v-if="currentVerified" class="flex items-center gap-1.5 mb-3 text-xs font-medium text-amber-600 dark:text-amber-400">
+                            <LockClosedIcon class="h-3.5 w-3.5" />
+                            {{ t('sheet_month_locked', { month: t(selectedMonth.toLowerCase()), year: selectedYear }) }}
+                        </div>
+                        <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700">
+                            <iframe :src="sheetEmbedUrl" class="w-full" style="height: 520px; border: 0;"
+                                    title="Client ledger sheet"></iframe>
+                        </div>
+                    </div>
+                    <p v-else class="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">
+                        {{ t('no_sheet_linked_hint') }}
+                    </p>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 <!-- ── LEFT: Data Entry Form ── -->
                 <div class="lg:col-span-2 space-y-5">
+
+                    <!-- Report-mode notice: data is entered in the linked sheet -->
+                    <div v-if="reportMode" class="flex items-start gap-2 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-900/40 rounded-lg px-4 py-3">
+                        <TableCellsIcon class="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>{{ t('report_mode_notice') }}</span>
+                    </div>
+
+                    <!-- Sheet-sourced ledger fields: read-only in report mode -->
+                    <fieldset :disabled="reportMode" class="space-y-5 m-0 p-0 border-0 min-w-0 disabled:opacity-95">
 
                     <!-- SECTION: Sales Income -->
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
@@ -874,6 +1017,7 @@ const exportLedgerToPDF = async () => {
                             </div>
                         </div>
                     </div>
+                    </fieldset>
 
                     <!-- SECTION: Bank Accounts -->
                     <div v-if="bankAccounts.length > 0" class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden">
