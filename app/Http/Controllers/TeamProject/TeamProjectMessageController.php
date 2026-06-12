@@ -7,6 +7,7 @@ use App\Models\TeamProject;
 use App\Models\TeamProjectMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class TeamProjectMessageController extends Controller
 {
@@ -21,8 +22,9 @@ class TeamProjectMessageController extends Controller
 
         $attachmentPath = null;
         if ($request->hasFile('attachment')) {
+            // Private disk — served only via the auth-checked downloadAttachment route.
             $attachmentPath = $request->file('attachment')
-                ->store("team_projects/{$teamProject->id}/chat", 'public');
+                ->store("team_projects/{$teamProject->id}/chat", 'local');
         }
 
         TeamProjectMessage::create([
@@ -33,6 +35,17 @@ class TeamProjectMessageController extends Controller
         ]);
 
         return back();
+    }
+
+    public function downloadAttachment(TeamProject $teamProject, TeamProjectMessage $message)
+    {
+        abort_unless($message->team_project_id === $teamProject->id, 404);
+        $this->authorizeMember($teamProject);
+
+        abort_unless($message->attachment_path, 404, 'No attachment on this message.');
+        abort_unless(Storage::disk('local')->exists($message->attachment_path), 404, 'File not found.');
+
+        return Storage::disk('local')->response($message->attachment_path, basename($message->attachment_path));
     }
 
     private function authorizeMember(TeamProject $teamProject): void

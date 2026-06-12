@@ -31,7 +31,6 @@ use App\Http\Controllers\TeamProject\TeamProjectController;
 use App\Http\Controllers\TeamProject\TeamProjectFileController;
 use App\Http\Controllers\TeamProject\TeamProjectMessageController;
 use App\Http\Controllers\TeamProject\TeamProjectTodoController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -40,8 +39,8 @@ Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
+        // Framework/PHP versions deliberately omitted — exposing them to
+        // unauthenticated visitors only aids version-specific fingerprinting.
     ]);
 });
 
@@ -92,9 +91,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/tasks/{task}/comments', [TaskCommentController::class, 'index'])->name('tasks.comments.index');
     Route::post('/tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('tasks.comments.store');
     Route::delete('/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy'])->name('tasks.comments.destroy');
+    Route::get('/tasks/{task}/comments/{comment}/attachment', [TaskCommentController::class, 'downloadAttachment'])->name('tasks.comments.attachment');
 
     // Secure Task report downloads
     Route::get('/tasks/{task}/documents/download', [TaskController::class, 'downloadDocument'])->name('tasks.documents.download');
+
+    // Private-disk attachment streams (auth-checked inside the controllers).
+    Route::get('/messages/{message}/attachment', [MessageController::class, 'downloadAttachment'])->name('messages.attachment');
+    Route::get('/invoice-payments/{payment}/receipt', [BillingController::class, 'downloadReceipt'])->name('invoice-payments.receipt');
 });
 
 // --- CLIENT PORTAL ---
@@ -233,6 +237,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Internal team chat
     Route::post('/team-projects/{teamProject}/messages', [TeamProjectMessageController::class, 'store'])->name('team-projects.messages.store');
+    Route::get('/team-projects/{teamProject}/messages/{message}/attachment', [TeamProjectMessageController::class, 'downloadAttachment'])->name('team-projects.messages.attachment');
 
     // Project-scoped client thread (leader-gated for posting)
     Route::get('/team-projects/{teamProject}/client-thread', [TeamProjectController::class, 'clientThread'])->name('team-projects.client-thread');

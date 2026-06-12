@@ -104,7 +104,7 @@ class InvoiceController extends Controller
         ]);
 
         $receiptPath = $request->hasFile('receipt')
-            ? $request->file('receipt')->store('invoice-receipts', 'public')
+            ? $request->file('receipt')->store('invoice-receipts', 'local')
             : null;
 
         $invoice->payments()->create([

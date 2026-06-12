@@ -29,7 +29,7 @@ const showingNavigationDropdown = ref(false);
                                     <ApplicationLogo class="block h-9 w-auto transition-transform group-hover:scale-105" />
                                     <div class="hidden lg:flex flex-col -space-y-1">
                                         <span class="text-lg font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">GGAA <span class="text-blue-600">Systems</span></span>
-                                        <span class="text-[7px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[120px]">{{ $t('gedion_girma_accountant') }}</span>
+                                        <span class="text-[7px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[120px]">{{ $t('gedewon_girma_accountant') }}</span>
                                     </div>
                                 </Link>
                             </div>

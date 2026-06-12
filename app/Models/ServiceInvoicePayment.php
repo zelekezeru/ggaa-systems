@@ -18,7 +18,11 @@ class ServiceInvoicePayment extends Model
 
     public function getReceiptPhotoUrlAttribute()
     {
-        return $this->receipt_photo_path ? asset('storage/' . $this->receipt_photo_path) : null;
+        // Served through an auth-checked route (the receipt lives on the private
+        // disk), never a public /storage URL.
+        return $this->receipt_photo_path
+            ? route('invoice-payments.receipt', $this->id)
+            : null;
     }
 
     public function approvedBy()

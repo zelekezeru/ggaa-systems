@@ -345,7 +345,7 @@ class TeamProjectController extends Controller
 
         $attachmentPath = null;
         if ($request->hasFile('attachment')) {
-            $attachmentPath = $request->file('attachment')->store('firm_files/outbound', 'public');
+            $attachmentPath = $request->file('attachment')->store('firm_files/outbound', 'local');
         }
 
         Message::create([
@@ -372,7 +372,7 @@ class TeamProjectController extends Controller
                 'id'         => $m->id,
                 'body'       => $m->body,
                 'sender'     => $m->sender ? ['id' => $m->sender->id, 'name' => $m->sender->name] : null,
-                'attachment' => $m->attachment_path ? Storage::disk('public')->url($m->attachment_path) : null,
+                'attachment' => $m->attachment_path ? route('messages.attachment', $m->id) : null,
                 'created_at' => $m->created_at->toISOString(),
             ]);
 

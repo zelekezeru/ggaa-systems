@@ -145,10 +145,10 @@ class BillingController extends Controller
             'status'          => ['nullable', 'string', 'in:Draft,Pending Approval,Completed'],
         ]);
 
-        // Handle file upload
+        // Handle file upload (private disk — served via downloadReceipt route)
         $photoPath = null;
         if ($request->hasFile('receipt_photo')) {
-            $photoPath = $request->file('receipt_photo')->store('receipts', 'public');
+            $photoPath = $request->file('receipt_photo')->store('receipts', 'local');
         }
 
         $invoice = ServiceInvoice::where('client_id', $client->id)
@@ -234,7 +234,7 @@ class BillingController extends Controller
 
         $photoPath = $payment->receipt_photo_path;
         if ($request->hasFile('receipt_photo')) {
-            $photoPath = $request->file('receipt_photo')->store('receipts', 'public');
+            $photoPath = $request->file('receipt_photo')->store('receipts', 'local');
         }
 
         $payment->update([
@@ -263,5 +263,24 @@ class BillingController extends Controller
         ]);
 
         return back()->with('success', "Payment rejected.");
+    }
+
+    /**
+     * Stream a payment receipt from the private disk. Authorization rides on the
+     * ServiceInvoice global scope: Finance/Super Admin see all, Branch Managers
+     * their branch, and Clients only their own invoices' receipts.
+     */
+    public function downloadReceipt(ServiceInvoicePayment $payment)
+    {
+        abort_unless(
+            ServiceInvoice::where('id', $payment->service_invoice_id)->exists(),
+            403,
+            'You are not allowed to view this receipt.'
+        );
+
+        abort_unless($payment->receipt_photo_path, 404, 'No receipt on this payment.');
+        abort_unless(Storage::disk('local')->exists($payment->receipt_photo_path), 404, 'File not found.');
+
+        return Storage::disk('local')->response($payment->receipt_photo_path, basename($payment->receipt_photo_path));
     }
 }

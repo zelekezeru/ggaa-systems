@@ -21,7 +21,9 @@ class TeamProjectFileController extends Controller
 
         $upload   = $request->file('file');
         $folder   = "team_projects/{$teamProject->id}";
-        $stored   = $upload->store($folder, 'public');
+        // Private disk: these files are only ever served through the
+        // access-controlled download() route below, never via a public URL.
+        $stored   = $upload->store($folder, 'local');
 
         TeamProjectFile::create([
             'team_project_id' => $teamProject->id,
@@ -40,11 +42,11 @@ class TeamProjectFileController extends Controller
         abort_unless($file->team_project_id === $teamProject->id, 404);
         $this->authorizeMember($teamProject);
 
-        if (!Storage::disk('public')->exists($file->path)) {
+        if (!Storage::disk('local')->exists($file->path)) {
             abort(404, 'File not found on disk.');
         }
 
-        return Storage::disk('public')->download($file->path, $file->original_name);
+        return Storage::disk('local')->download($file->path, $file->original_name);
     }
 
     public function destroy(TeamProject $teamProject, TeamProjectFile $file)
@@ -57,7 +59,7 @@ class TeamProjectFileController extends Controller
         abort_unless($user->can('manage team projects') || $isLeader || $isUploader, 403);
 
         if ($file->path) {
-            Storage::disk('public')->delete($file->path);
+            Storage::disk('local')->delete($file->path);
         }
         $file->delete();
 

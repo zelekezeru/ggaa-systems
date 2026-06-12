@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class TeamProjectFile extends Model
 {
@@ -23,6 +22,10 @@ class TeamProjectFile extends Model
 
     public function getUrlAttribute(): ?string
     {
-        return $this->path ? Storage::disk('public')->url($this->path) : null;
+        // Files live on the private disk — link to the auth-checked download
+        // route rather than a public /storage URL.
+        return $this->path
+            ? route('team-projects.files.download', [$this->team_project_id, $this->id])
+            : null;
     }
 }

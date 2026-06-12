@@ -25,7 +25,7 @@ class MessageController extends Controller
                 'body'        => $m->body,
                 'sender'      => $m->sender ? ['id' => $m->sender->id, 'name' => $m->sender->name] : null,
                 'is_mine'     => $m->sender_id === $user->id,
-                'attachment'  => $m->attachment_path ? Storage::url($m->attachment_path) : null,
+                'attachment'  => $m->attachment_path ? route('messages.attachment', $m->id) : null,
                 'created_at'  => $m->created_at->toISOString(),
             ]);
 
@@ -70,7 +70,7 @@ class MessageController extends Controller
                 'body'       => $m->body,
                 'sender'     => $m->sender ? ['id' => $m->sender->id, 'name' => $m->sender->name] : null,
                 'is_mine'    => $m->sender_id === $user->id,
-                'attachment' => $m->attachment_path ? Storage::url($m->attachment_path) : null,
+                'attachment' => $m->attachment_path ? route('messages.attachment', $m->id) : null,
                 'created_at' => $m->created_at->toISOString(),
             ]);
 
@@ -110,7 +110,7 @@ class MessageController extends Controller
 
         if ($request->hasFile('attachment')) {
             $directory = 'client_files/' . $user->client->tin_number;
-            $filePath  = $request->file('attachment')->store($directory, 'public');
+            $filePath  = $request->file('attachment')->store($directory, 'local');
         }
 
         $message = Message::create([
@@ -150,7 +150,7 @@ class MessageController extends Controller
         $filePath = null;
 
         if ($request->hasFile('attachment')) {
-            $filePath = $request->file('attachment')->store('firm_files/outbound', 'public');
+            $filePath = $request->file('attachment')->store('firm_files/outbound', 'local');
         }
 
         $message = Message::create([
@@ -168,5 +168,24 @@ class MessageController extends Controller
         }
 
         return back()->with('success', 'Reply sent to client.');
+    }
+
+    // ── GET: Stream a message attachment from the private disk ─────────────────
+    public function downloadAttachment(Message $message)
+    {
+        $user = Auth::user();
+
+        // Clients are confined to their own thread by the Message global scope
+        // (route-model binding 404s otherwise). Staff must be permitted to see
+        // the client this message belongs to — reuse the Client global scope,
+        // which limits employees to assigned clients and managers to their branch.
+        if (! $user->hasRole('Client')) {
+            abort_unless(Client::where('id', $message->client_id)->exists(), 403);
+        }
+
+        abort_unless($message->attachment_path, 404, 'No attachment on this message.');
+        abort_unless(Storage::disk('local')->exists($message->attachment_path), 404, 'File not found.');
+
+        return Storage::disk('local')->response($message->attachment_path, basename($message->attachment_path));
     }
 }

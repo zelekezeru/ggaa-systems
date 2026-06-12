@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class TeamProjectMessage extends Model
 {
@@ -23,6 +22,10 @@ class TeamProjectMessage extends Model
 
     public function getAttachmentUrlAttribute(): ?string
     {
-        return $this->attachment_path ? Storage::disk('public')->url($this->attachment_path) : null;
+        // Served through an auth-checked route (the file lives on the private
+        // disk), never a public /storage URL.
+        return $this->attachment_path
+            ? route('team-projects.messages.attachment', [$this->team_project_id, $this->id])
+            : null;
     }
 }

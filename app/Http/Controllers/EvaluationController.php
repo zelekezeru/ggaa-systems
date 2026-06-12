@@ -32,9 +32,11 @@ class EvaluationController extends Controller
             ->whereHas('staffProfile', fn ($q) => $q->where('is_active', true))
             ->with(['staffProfile', 'branch', 'roles:id,name']);
 
-        // Branch Managers only evaluate their own branch.
+        // Only GM (Super Admin) and Operation Manager have firm-wide reach.
+        // Every other evaluator (Branch Manager, Team Leader, …) is confined to
+        // their own branch — mirrors the Evaluation model's global scope.
         $actor = Auth::user();
-        if ($actor->hasRole('Branch Manager') && ! $actor->hasAnyRole(['Super Admin', 'Operation Manager'])) {
+        if (! $actor->hasAnyRole(['Super Admin', 'Operation Manager'])) {
             $staffQuery->where('branch_id', $actor->branch_id);
         }
 
@@ -85,6 +87,7 @@ class EvaluationController extends Controller
     public function show(Request $request, User $staff)
     {
         abort_unless(Auth::user()->can('view evaluations'), 403);
+        $this->authorizeStaffScope($staff);
 
         $month = (int) $request->query('month', now()->month);
         $year  = (int) $request->query('year', now()->year);
@@ -245,6 +248,7 @@ class EvaluationController extends Controller
     public function attachMetric(Request $request, User $staff)
     {
         abort_unless(Auth::user()->can('manage evaluations'), 403);
+        $this->authorizeStaffScope($staff);
 
         $validated = $request->validate([
             'evaluation_metric_id' => 'required|exists:evaluation_metrics,id',
@@ -264,6 +268,7 @@ class EvaluationController extends Controller
     public function updateMetricWeight(Request $request, User $staff, StaffEvaluationMetric $assignment)
     {
         abort_unless(Auth::user()->can('manage evaluations'), 403);
+        $this->authorizeStaffScope($staff);
         abort_unless($assignment->user_id === $staff->id, 404);
 
         $validated = $request->validate([
@@ -282,11 +287,48 @@ class EvaluationController extends Controller
     public function detachMetric(User $staff, StaffEvaluationMetric $assignment)
     {
         abort_unless(Auth::user()->can('manage evaluations'), 403);
+        $this->authorizeStaffScope($staff);
         abort_unless($assignment->user_id === $staff->id, 404);
 
         $assignment->delete();
 
         return back()->with('success', 'Metric removed from the rubric.');
+    }
+
+    /**
+     * Guard staff-targeted evaluation actions against horizontal access.
+     *
+     * The Evaluation model's global scope confines Branch Managers to their
+     * branch and everyone else to their own record, but the staff-targeted
+     * endpoints below bind a User (and a StaffEvaluationMetric) directly, so the
+     * scope never runs. Without this, a Branch Manager or Team Leader holding
+     * "manage evaluations" could view or rewrite the rubric of staff in other
+     * branches by guessing user IDs. GM / Operation Manager keep firm-wide reach.
+     */
+    private function authorizeStaffScope(User $staff): void
+    {
+        /** @var \App\Models\User $actor */
+        $actor = Auth::user();
+
+        if ($actor->hasAnyRole(['Super Admin', 'Operation Manager'])) {
+            return;
+        }
+
+        if ($actor->hasRole('Branch Manager')) {
+            abort_unless(
+                $staff->branch_id !== null && $staff->branch_id === $actor->branch_id,
+                403,
+                'You can only manage evaluations for staff in your own branch.'
+            );
+            return;
+        }
+
+        // Any other evaluator (e.g. Team Leader) may only touch their own record.
+        abort_unless(
+            $staff->id === $actor->id,
+            403,
+            'You are not allowed to manage this staff member’s evaluation.'
+        );
     }
 
     /**

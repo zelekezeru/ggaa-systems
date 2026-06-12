@@ -9,6 +9,7 @@ use App\Notifications\NewCommentNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 
 class TaskCommentController extends Controller
 {
@@ -54,7 +55,8 @@ class TaskCommentController extends Controller
         $attachmentPath = null;
         if ($request->hasFile('attachment')) {
             $directory = 'task_comments/' . $task->id;
-            $attachmentPath = $request->file('attachment')->store($directory, 'public');
+            // Private disk — served only via the auth-checked downloadAttachment route.
+            $attachmentPath = $request->file('attachment')->store($directory, 'local');
         }
 
         $comment = $task->comments()->create([
@@ -100,5 +102,19 @@ class TaskCommentController extends Controller
         $comment->delete();
 
         return back()->with('success', 'Comment deleted.');
+    }
+
+    /**
+     * Stream a comment attachment from the private disk. The Task global scope
+     * (applied on route-model binding) guarantees the caller may see this task,
+     * so visibility piggy-backs on it exactly like index().
+     */
+    public function downloadAttachment(Task $task, TaskComment $comment)
+    {
+        abort_unless($comment->task_id === $task->id, 404);
+        abort_unless($comment->attachment_path, 404, 'No attachment on this comment.');
+        abort_unless(Storage::disk('local')->exists($comment->attachment_path), 404, 'File not found.');
+
+        return Storage::disk('local')->response($comment->attachment_path, basename($comment->attachment_path));
     }
 }
