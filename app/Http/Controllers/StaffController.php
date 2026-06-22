@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\StaffBroadcastMail;
 use App\Models\Branch;
 use App\Models\ServiceType;
 use App\Models\StaffUser;
@@ -9,8 +10,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -83,7 +84,7 @@ class StaffController extends Controller
         $validated = $request->validate([
             'name'              => 'required|string|max:255',
             'email'             => 'required|string|email|max:255|unique:users',
-            'password'          => 'required|string|min:8|confirmed',
+            'password'          => 'nullable|string|min:8|confirmed',
             'user_type'         => 'required|in:staff,client',
             'branch_id'         => 'required|exists:branches,id',
             'service_type_ids'  => 'nullable|array',
@@ -106,13 +107,17 @@ class StaffController extends Controller
             $photoPath = $request->file('profile_photo')->store('profile-photos', 'public');
         }
 
+        // New accounts default to the shared "ggaa@password" credential and are
+        // forced to set their own password on first login. An admin may still
+        // supply an explicit password, which is likewise change-on-first-login.
         $user = User::create([
-            'name'               => $validated['name'],
-            'email'              => $validated['email'],
-            'password'           => Hash::make($validated['password']),
-            'branch_id'          => $validated['branch_id'],
-            'profile_photo_path' => $photoPath,
-            'client_id'          => $validated['user_type'] === 'client' ? $validated['client_id'] : null,
+            'name'                 => $validated['name'],
+            'email'                => $validated['email'],
+            'password'             => Hash::make($validated['password'] ?? 'ggaa@password'),
+            'must_change_password' => true,
+            'branch_id'            => $validated['branch_id'],
+            'profile_photo_path'   => $photoPath,
+            'client_id'            => $validated['user_type'] === 'client' ? $validated['client_id'] : null,
         ]);
 
         if ($request->filled('service_type_ids')) {
@@ -210,20 +215,66 @@ class StaffController extends Controller
     {
         abort_unless(auth()->user()->can('manage-user'), 403, 'Unauthorized access.');
 
-        $newPassword = Str::password(12, true, true, false, false);
-
-        $staff->password = Hash::make($newPassword);
-        $staff->save();
-
+        // Send a proper, time-limited password-reset link so the staff member
+        // chooses their own password — never email a plaintext credential.
         try {
-            Mail::raw("Hello {$staff->name},\n\nYour manager has reset your account password. Your new password is:\n\n{$newPassword}\n\nPlease login and change it immediately.", function ($message) use ($staff) {
-                $message->to($staff->email)
-                        ->subject('Your New Account Password');
-            });
-            return back()->with('success', "Password reset! A temporary password has been emailed to {$staff->email}.");
+            $status = Password::sendResetLink(['email' => $staff->email]);
+
+            return $status === Password::RESET_LINK_SENT
+                ? back()->with('success', "Password reset link sent to {$staff->email}.")
+                : back()->with('error', trans($status));
         } catch (\Exception $e) {
-            return back()->with('warning', "Email not configured locally. Password reset to: {$newPassword}");
+            report($e);
+            return back()->with('error', 'Could not send the reset email. Please verify the mail configuration.');
         }
+    }
+
+    /**
+     * Send a one-off email to a set of staff members selected from the list.
+     * Delivered synchronously so it works without a running queue worker.
+     */
+    public function sendBulkEmail(Request $request)
+    {
+        abort_unless(auth()->user()->can('manage-user'), 403, 'Unauthorized access.');
+
+        $validated = $request->validate([
+            'user_ids'   => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+            'subject'    => ['required', 'string', 'max:255'],
+            'message'    => ['required', 'string', 'max:5000'],
+        ]);
+
+        $recipients = User::whereIn('id', $validated['user_ids'])
+            ->whereNotNull('email')
+            ->get(['id', 'name', 'email']);
+
+        if ($recipients->isEmpty()) {
+            return back()->with('error', 'None of the selected users have an email address.');
+        }
+
+        $sent = 0;
+        $failed = [];
+
+        foreach ($recipients as $recipient) {
+            try {
+                Mail::to($recipient->email)->send(
+                    new StaffBroadcastMail($validated['subject'], $validated['message'], $recipient->name)
+                );
+                $sent++;
+            } catch (\Throwable $e) {
+                report($e);
+                $failed[] = $recipient->email;
+            }
+        }
+
+        if (! empty($failed)) {
+            return back()->with(
+                'warning',
+                "Sent to {$sent} of {$recipients->count()}. Failed: " . implode(', ', $failed) . '. Check the mail configuration.'
+            );
+        }
+
+        return back()->with('success', "Message sent to {$sent} staff member(s).");
     }
 
     public function destroy(User $staff)

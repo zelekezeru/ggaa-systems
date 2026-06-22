@@ -20,20 +20,16 @@ class UserSeeder extends Seeder
     {
         $seeded = [
             ['email' => 'superadmin@ggaa.com', 'name' => 'Super Admin',    'role' => 'Super Admin',    'position' => 'admin'],
-            ['email' => 'manager@ggaa.com',    'name' => 'Branch Manager', 'role' => 'Branch Manager', 'position' => 'manager'],
-            ['email' => 'leader@ggaa.com',     'name' => 'Team Leader',    'role' => 'Team Leader',    'position' => 'team_leader'],
-            ['email' => 'finance@ggaa.com',    'name' => 'Finance Admin',  'role' => 'Finance Admin',  'position' => 'finance'],
-            ['email' => 'employee@ggaa.com',   'name' => 'Staff Employee', 'role' => 'Employee',       'position' => 'employee'],
-            ['email' => 'client@ggaa.com',     'name' => 'Portal Client',  'role' => 'Client',         'position' => null],
         ];
 
         foreach ($seeded as $data) {
             $user = User::updateOrCreate(
                 ['email' => $data['email']],
                 [
-                    'name'              => $data['name'],
-                    'password'          => Hash::make('password'),
-                    'email_verified_at' => now(),
+                    'name'                 => $data['name'],
+                    'password'             => Hash::make('ggaa@password'),
+                    'must_change_password' => true,
+                    'email_verified_at'    => now(),
                 ]
             );
 

@@ -66,7 +66,7 @@ const features = [
                     </div>
                     <div class="flex flex-col -space-y-1">
                         <span class="text-xl font-black tracking-tighter text-slate-900 dark:text-white uppercase leading-none">GGAA <span class="text-blue-600">Systems</span></span>
-                        <span class="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Gedewon Girma Authorized Accountant</span>
+                        <span class="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Gedewon Gebre Authorized Accountant</span>
                     </div>
                 </div>
 
@@ -288,7 +288,7 @@ const features = [
                 </div>
                 
                 <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    &copy; 2026 GGAA (Gedewon Girma Authorized Accountant) . Built with Precision.
+                    &copy; 2026 GGAA (Gedewon Gebre Authorized Accountant) . Built with Precision.
                 </div>
 
                 <div class="flex gap-6">

@@ -27,6 +27,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
     }
 
@@ -35,6 +36,22 @@ class User extends Authenticatable
         return $this->profile_photo_path
             ? asset('storage/' . $this->profile_photo_path)
             : null;
+    }
+
+    /**
+     * The landing route this user is sent to after login. Every role must map
+     * to a route its middleware actually permits — otherwise the post-login
+     * redirect throws a 403 ("User does not have the right roles").
+     */
+    public function homeRoute(): string
+    {
+        return match (true) {
+            $this->hasAnyRole(['Super Admin', 'Operation Manager', 'Branch Manager']) => 'super-admin.dashboard',
+            $this->hasRole('Finance Admin') => 'finance.billing',
+            $this->hasRole('Client') => 'client.dashboard',
+            $this->hasAnyRole(['Employee', 'Team Leader']) => 'employee.workspace',
+            default => 'profile.edit',
+        };
     }
 
     // --- Relationships ---

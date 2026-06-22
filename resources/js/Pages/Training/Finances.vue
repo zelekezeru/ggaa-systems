@@ -674,7 +674,7 @@ const slides = {
                         <div class="flex justify-between items-start border-b pb-3">
                             <div>
                                 <span class="text-[8px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black">OFFICIAL AUDIT SHEET</span>
-                                <h4 class="text-xs font-black font-outfit uppercase mt-1">Gedewon Girma Accountant</h4>
+                                <h4 class="text-xs font-black font-outfit uppercase mt-1">Gedewon Gebre Accountant</h4>
                             </div>
                             <div class="w-12 h-12 bg-slate-200 border flex items-center justify-center text-[9px] font-bold">
                                 [ QR ]

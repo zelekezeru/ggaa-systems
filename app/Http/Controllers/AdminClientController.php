@@ -126,11 +126,13 @@ class AdminClientController extends Controller
             }
         }
 
-        // Automate Portal User Creation
+        // Automate Portal User Creation. The TIN is the client's initial
+        // password; they are forced to choose their own on first portal login.
         $user = User::create([
             'name' => $client->company_name,
             'email' => $request->email,
             'password' => Hash::make($client->tin_number),
+            'must_change_password' => true,
             'client_id' => $client->id,
             'email_verified_at' => now(),
         ]);

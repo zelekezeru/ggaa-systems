@@ -32,19 +32,10 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
         $request->session()->regenerate();
 
-        $user = $request->user();
-
-        // Smart Redirection based on Spatie Role
-        if ($user->hasRole('Super Admin') || $user->hasRole('Branch Manager')) {
-            return redirect()->route('super-admin.dashboard');
-        } elseif ($user->hasRole('Finance Admin')) {
-            return redirect()->route('finance.billing');
-        } elseif ($user->hasRole('Client')) {
-            return redirect()->route('client.dashboard');
-        }
-
-        // Default for Employees
-        return redirect()->route('employee.workspace');
+        // Smart redirection based on Spatie role. The EnsurePasswordChanged
+        // middleware will intercept first-login users and force them onto the
+        // change-password screen before they reach this destination.
+        return redirect()->route($request->user()->homeRoute());
     }
 
     /**

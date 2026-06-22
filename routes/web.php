@@ -66,13 +66,7 @@ Route::get('/portal/login', function () {
 Route::get('/dashboard', function () {
     /** @var \App\Models\User $user */
     $user = Auth::user();
-    if ($user->hasRole('Employee'))
-        return redirect()->route('employee.workspace');
-    if ($user->hasRole('Client'))
-        return redirect()->route('client.dashboard');
-    if ($user->hasRole('Finance Admin'))
-        return redirect()->route('finance.billing');
-    return redirect()->route('super-admin.dashboard'); // Super Admin / Branch Manager fallback
+    return redirect()->route($user->homeRoute());
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -130,6 +124,7 @@ Route::middleware(['auth', 'role:Super Admin|Branch Manager|Operation Manager'])
     Route::put('/super-admin/staff/{staff}', [StaffController::class, 'update'])->name('admin.staff.update');
     Route::delete('/super-admin/staff/{staff}', [StaffController::class, 'destroy'])->name('admin.staff.destroy');
     Route::post('/super-admin/staff/{staff}/reset-password', [StaffController::class, 'resetPassword'])->name('admin.staff.reset-password');
+    Route::post('/super-admin/staff/send-email', [StaffController::class, 'sendBulkEmail'])->name('admin.staff.send-email');
 
     Route::get('/super-admin/documents', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'index'])->name('super-admin.documents');
     Route::post('/super-admin/documents', [\App\Http\Controllers\SuperAdmin\DocumentManagementController::class, 'storeDocument'])->name('admin.documents.store');
@@ -355,7 +350,7 @@ Route::middleware(['auth', 'role:Finance Admin|Super Admin'])->group(function ()
 });
 
 // --- EMPLOYEE PORTAL ---
-Route::middleware(['auth', 'role:Employee'])->group(function () {
+Route::middleware(['auth', 'role:Employee|Team Leader'])->group(function () {
     Route::get('/workspace', [WorkspaceController::class, 'index'])->name('employee.workspace');
     Route::patch('/workspace/tasks/{task}/status', [WorkspaceController::class, 'updateStatus'])->name('employee.tasks.status');
     Route::post('/workspace/tasks/{task}/details', [WorkspaceController::class, 'updateDetails'])->name('employee.tasks.details');

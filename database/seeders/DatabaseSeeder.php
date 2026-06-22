@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             RoleAndPermissionSeeder::class,
             UserSeeder::class,
             ClientSeeder::class,
+            RealTeamSeeder::class,
             AchievementSeeder::class,
             DocumentTypeSeeder::class,
             EvaluationMetricSeeder::class,

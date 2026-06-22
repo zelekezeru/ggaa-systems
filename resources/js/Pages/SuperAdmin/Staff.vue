@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { PlusIcon, XMarkIcon, BriefcaseIcon, TagIcon } from '@heroicons/vue/24/outline';
+import { PlusIcon, XMarkIcon, BriefcaseIcon, TagIcon, EnvelopeIcon } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -42,7 +42,8 @@ const activeTab = ref('All');
 const tabOptions = computed(() => [
     { name: 'All', label: t('all'), count: props.staff.length },
     { name: 'Over', label: t('over_capacity'), count: props.staff.filter(s => s.capacity_points >= 25).length },
-    { name: 'Available', label: t('available'), count: props.staff.filter(s => s.capacity_points <= 15).length }
+    { name: 'Available', label: t('available'), count: props.staff.filter(s => s.capacity_points <= 15).length },
+    { name: 'Announcements', label: t('announcements') || 'Announcements' }
 ]);
 
 const filteredStaff = computed(() => {
@@ -173,6 +174,41 @@ const getCapacityColor = (percentage) => {
     if (percentage < 85) return 'bg-yellow-500';
     return 'bg-red-500';
 };
+
+// --- Announcements: recipient selection + email ---
+const selectedIds = ref([]);
+
+const toggleSelect = (id) => {
+    const i = selectedIds.value.indexOf(id);
+    if (i === -1) selectedIds.value.push(id);
+    else selectedIds.value.splice(i, 1);
+};
+
+const allSelected = computed(() =>
+    props.staff.length > 0 &&
+    props.staff.every(s => selectedIds.value.includes(s.id))
+);
+
+const toggleSelectAll = () => {
+    selectedIds.value = allSelected.value ? [] : props.staff.map(s => s.id);
+};
+
+const emailForm = useForm({
+    user_ids: [],
+    subject: '',
+    message: '',
+});
+
+const sendEmail = () => {
+    emailForm.user_ids = [...selectedIds.value];
+    emailForm.post(route('admin.staff.send-email'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            selectedIds.value = [];
+            emailForm.reset();
+        },
+    });
+};
 </script>
 
 <template>
@@ -180,8 +216,8 @@ const getCapacityColor = (percentage) => {
     <AdminLayout>
         <div class="px-4 sm:px-6 lg:px-8 py-8 min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-200">
             <PageHeader :title="$t('staff')" :description="$t('staff_desc')">
-                <ViewModeToggle v-model="viewMode" />
-                <PrimaryActionBtn @click="openModal()" class="flex-1 sm:flex-none">
+                <ViewModeToggle v-if="activeTab !== 'Announcements'" v-model="viewMode" />
+                <PrimaryActionBtn v-if="activeTab !== 'Announcements'" @click="openModal()" class="flex-1 sm:flex-none">
                     {{ $t('onboard_employee') }}
                 </PrimaryActionBtn>
             </PageHeader>
@@ -191,7 +227,7 @@ const getCapacityColor = (percentage) => {
                 :tabs="tabOptions" 
             />
 
-            <GridContainer v-if="viewMode === 'grid'">
+            <GridContainer v-if="activeTab !== 'Announcements' && viewMode === 'grid'">
                 <GridCard v-for="employee in filteredStaff" :key="employee.id" class="p-6">
                     <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                         <RowActions
@@ -252,7 +288,7 @@ const getCapacityColor = (percentage) => {
                 </div>
             </GridContainer>
  
-            <div v-else>
+            <div v-else-if="activeTab !== 'Announcements'">
                 <Table>
                     <TableHead>
                         <tr>
@@ -319,6 +355,73 @@ const getCapacityColor = (percentage) => {
                         </tr>
                     </TableBody>
                 </Table>
+            </div>
+
+            <!-- ANNOUNCEMENTS COMPOSER -->
+            <div v-else class="max-w-4xl">
+                <div class="bg-white dark:bg-slate-800 rounded-2xl ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+                        <div class="h-10 w-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                            <EnvelopeIcon class="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">{{ $t('send_announcement') || 'Send Announcement' }}</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">{{ $t('announcement_desc') || 'Compose a message and email it directly to the selected staff.' }}</p>
+                        </div>
+                    </div>
+
+                    <form id="announcement-form" @submit.prevent="sendEmail" class="p-6 space-y-6">
+                        <!-- Recipients -->
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                    {{ $t('recipients') || 'Recipients' }}
+                                    <span class="text-blue-600 dark:text-blue-400">({{ selectedIds.length }}/{{ staff.length }})</span>
+                                </label>
+                                <button type="button" @click="toggleSelectAll" class="text-xs font-bold uppercase tracking-wide text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                    {{ allSelected ? ($t('clear_all') || 'Clear all') : ($t('select_all') || 'Select all') }}
+                                </button>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto rounded-xl ring-1 ring-inset ring-slate-200 dark:ring-slate-700 divide-y divide-slate-100 dark:divide-slate-700/50">
+                                <label v-for="employee in staff" :key="employee.id" class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                    <input type="checkbox" :checked="selectedIds.includes(employee.id)" @change="toggleSelect(employee.id)" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                                    <div class="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-bold flex-shrink-0 overflow-hidden">
+                                        <img v-if="employee.profile_photo_url" :src="employee.profile_photo_url" :alt="employee.name" class="h-full w-full object-cover" />
+                                        <span v-else>{{ employee.name.charAt(0) }}</span>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{{ employee.name }}</div>
+                                        <div class="text-[11px] text-slate-400 truncate">{{ employee.email }}</div>
+                                    </div>
+                                </label>
+                                <div v-if="staff.length === 0" class="px-4 py-6 text-center text-sm text-slate-400">{{ $t('no_employees') }}</div>
+                            </div>
+                            <p v-if="emailForm.errors.user_ids" class="mt-1.5 text-xs text-red-600 font-bold">{{ emailForm.errors.user_ids }}</p>
+                        </div>
+
+                        <!-- Subject -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('subject') || 'Subject' }}</label>
+                            <input v-model="emailForm.subject" type="text" required maxlength="255"
+                                class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" />
+                            <p v-if="emailForm.errors.subject" class="mt-1 text-xs text-red-600 font-bold">{{ emailForm.errors.subject }}</p>
+                        </div>
+
+                        <!-- Message -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">{{ $t('message') || 'Message' }}</label>
+                            <textarea v-model="emailForm.message" required rows="7" maxlength="5000"
+                                class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"></textarea>
+                            <p v-if="emailForm.errors.message" class="mt-1 text-xs text-red-600 font-bold">{{ emailForm.errors.message }}</p>
+                        </div>
+
+                        <div class="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <SubmitBtn form="announcement-form" :disabled="emailForm.processing || selectedIds.length === 0">
+                                {{ emailForm.processing ? ($t('sending') || 'Sending...') : (($t('send_announcement') || 'Send Announcement')) }}
+                            </SubmitBtn>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
 

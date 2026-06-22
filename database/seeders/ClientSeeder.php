@@ -186,7 +186,7 @@ class ClientSeeder extends Seeder
         /** @var User $clientPortalUser */
         $clientPortalUser = User::firstOrCreate(
             ['email' => 'client@ggaa.com'],
-            ['name' => 'Portal Client', 'password' => Hash::make('password'), 'email_verified_at' => now()]
+            ['name' => 'Portal Client', 'password' => Hash::make('ggaa@password'), 'must_change_password' => true, 'email_verified_at' => now()]
         );
 
         if (! $clientPortalUser->hasRole('Client')) {
