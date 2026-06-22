@@ -519,6 +519,201 @@ const statusBadge = computed(() => {
     return null;
 });
 
+// ── Ledger Automation: Pre-fill ──
+const prefillLoading   = ref(false);
+const prefillSuggestions = ref(null);   // { prefills, fixed_fields, source, receipts_count }
+const prefillApplied   = ref({});       // tracks which fields were auto-filled this session
+
+async function fetchPrefill() {
+    prefillLoading.value = true;
+    try {
+        const res = await fetch(
+            route('ledger.prefill', props.client.id) +
+            `?eth_month=${selectedMonth.value}&eth_year=${selectedYear.value}`,
+            { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
+        );
+        if (!res.ok) throw new Error('Server error');
+        const data = await res.json();
+        prefillSuggestions.value = data;
+
+        // Apply suggestions to the form (only for empty fields to avoid overwriting user input)
+        const applied = {};
+        Object.entries(data.prefills ?? {}).forEach(([field, value]) => {
+            const current = form[field];
+            const isEmpty = current === '' || current === null || current === 0;
+            if (isEmpty && value !== null && value !== undefined) {
+                form[field] = value;
+                applied[field] = true;
+            }
+        });
+        prefillApplied.value = applied;
+
+        const count = Object.keys(applied).length;
+        if (count > 0) {
+            toast.success(`Pre-filled ${count} field${count > 1 ? 's' : ''} automatically.`);
+        } else {
+            toast.info('No new pre-fill values — fields already have data.');
+        }
+    } catch (e) {
+        toast.error('Could not load pre-fill suggestions.');
+    } finally {
+        prefillLoading.value = false;
+    }
+}
+
+// ── Ledger Automation: Receipt Capture ──
+const showReceiptPanel  = ref(false);
+const receipts          = ref([]);
+const receiptsLoading   = ref(false);
+const receiptForm = ref({
+    supplier_name:    '',
+    receipt_date:     '',
+    invoice_number:   '',
+    description:      '',
+    expense_category: 'raw_material',
+    amount_before_vat:'',
+    vat_amount:       '',
+    has_vat_receipt:  true,
+    image:            null,
+});
+const receiptCategories = ref({});
+const receiptSubmitting = ref(false);
+
+async function loadReceipts() {
+    receiptsLoading.value = true;
+    try {
+        const res = await fetch(
+            route('ledger.receipts.index', props.client.id) +
+            `?eth_month=${selectedMonth.value}&eth_year=${selectedYear.value}`,
+            { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
+        );
+        const data = await res.json();
+        receipts.value         = data.receipts ?? [];
+        receiptCategories.value = data.category_labels ?? {};
+    } catch {
+        toast.error('Could not load receipts.');
+    } finally {
+        receiptsLoading.value = false;
+    }
+}
+
+watch(showReceiptPanel, (open) => { if (open) loadReceipts(); });
+
+async function submitReceipt() {
+    receiptSubmitting.value = true;
+    const fd = new FormData();
+    fd.append('eth_month',         selectedMonth.value);
+    fd.append('eth_year',          selectedYear.value);
+    fd.append('supplier_name',     receiptForm.value.supplier_name);
+    fd.append('receipt_date',      receiptForm.value.receipt_date);
+    fd.append('invoice_number',    receiptForm.value.invoice_number);
+    fd.append('description',       receiptForm.value.description);
+    fd.append('expense_category',  receiptForm.value.expense_category);
+    fd.append('amount_before_vat', receiptForm.value.amount_before_vat);
+    fd.append('vat_amount',        receiptForm.value.vat_amount || 0);
+    fd.append('has_vat_receipt',   receiptForm.value.has_vat_receipt ? '1' : '0');
+    if (receiptForm.value.image) fd.append('image', receiptForm.value.image);
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const res = await fetch(route('ledger.receipts.store', props.client.id), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+            body: fd,
+        });
+        if (!res.ok) throw new Error('Failed');
+        toast.success('Receipt captured.');
+        receiptForm.value = {
+            supplier_name: '', receipt_date: '', invoice_number: '',
+            description: '', expense_category: 'raw_material',
+            amount_before_vat: '', vat_amount: '', has_vat_receipt: true, image: null,
+        };
+        await loadReceipts();
+    } catch {
+        toast.error('Could not save receipt.');
+    } finally {
+        receiptSubmitting.value = false;
+    }
+}
+
+async function deleteReceipt(id) {
+    if (!confirm('Delete this receipt?')) return;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    await fetch(route('ledger.receipts.destroy', id), {
+        method: 'DELETE',
+        headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+    });
+    await loadReceipts();
+    toast.success('Receipt deleted.');
+}
+
+async function applyReceiptTotals() {
+    try {
+        const res = await fetch(
+            route('ledger.receipts.summarize', props.client.id) +
+            `?eth_month=${selectedMonth.value}&eth_year=${selectedYear.value}`,
+            { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
+        );
+        const data = await res.json();
+        Object.entries(data.field_totals ?? {}).forEach(([field, value]) => {
+            if (field in form) form[field] = value;
+        });
+        toast.success('Receipt totals applied to ledger form.');
+    } catch {
+        toast.error('Could not summarize receipts.');
+    }
+}
+
+// ── Ledger Automation: Bank Statement Import ──
+const showBankImport      = ref(false);
+const bankImportFile      = ref(null);
+const bankImportAccountId = ref(props.bankAccounts[0]?.id ?? null);
+const bankImportResult    = ref(null);
+const bankImporting       = ref(false);
+
+async function importBankStatement() {
+    if (!bankImportFile.value || !bankImportAccountId.value) {
+        toast.warning('Select a bank account and upload a statement file.');
+        return;
+    }
+    bankImporting.value = true;
+    const fd = new FormData();
+    fd.append('statement',       bankImportFile.value);
+    fd.append('bank_account_id', bankImportAccountId.value);
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const res = await fetch(route('ledger.bank-statement.import', props.client.id), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+            body: fd,
+        });
+        const data = await res.json();
+        bankImportResult.value = data;
+    } catch {
+        toast.error('Could not parse the bank statement.');
+    } finally {
+        bankImporting.value = false;
+    }
+}
+
+function applyBankImportResult() {
+    const r = bankImportResult.value;
+    if (!r) return;
+    const accId = r.bank_account_id;
+    if (!form.bank_balances[accId]) {
+        form.bank_balances[accId] = { balance: 0, loan_amount: 0, lc_margin_release: 0, transfer_in: 0, transfer_reversal: 0 };
+    }
+    if (r.closing_balance !== null) form.bank_balances[accId].balance         = r.closing_balance;
+    if (r.loan_amount > 0)         form.bank_balances[accId].loan_amount      = r.loan_amount;
+    if (r.lc_margin_release > 0)   form.bank_balances[accId].lc_margin_release= r.lc_margin_release;
+    if (r.transfer_in > 0)         form.bank_balances[accId].transfer_in      = r.transfer_in;
+    if (r.transfer_reversal > 0)   form.bank_balances[accId].transfer_reversal= r.transfer_reversal;
+    toast.success(`Bank balance applied for ${r.bank_account_label}.`);
+    showBankImport.value = false;
+    bankImportResult.value = null;
+}
+
 // ── Secure PDF Export & Verifiable QR ──
 const isExportingPDF = ref(false);
 
@@ -691,6 +886,234 @@ const exportLedgerToPDF = () => {
                         <span>{{ t('report_mode_notice') }}</span>
                     </div>
 
+                    <!-- ── AUTOMATION TOOLBAR ── -->
+                    <div v-if="!isLocked" class="flex flex-wrap gap-2 items-center bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl px-4 py-3">
+                        <span class="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mr-1">⚡ Auto-fill:</span>
+
+                        <!-- Pre-fill suggestions -->
+                        <button @click="fetchPrefill" :disabled="prefillLoading"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                            <ArrowPathIcon class="h-3.5 w-3.5" :class="{'animate-spin': prefillLoading}" />
+                            Smart Pre-fill
+                        </button>
+
+                        <!-- Receipt capture toggle -->
+                        <button @click="showReceiptPanel = !showReceiptPanel"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                            :class="showReceiptPanel
+                                ? 'bg-amber-600 text-white border-amber-600'
+                                : 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-50'">
+                            <ReceiptPercentIcon class="h-3.5 w-3.5" />
+                            Receipts
+                            <span v-if="receipts.length" class="ml-0.5 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 rounded-full px-1.5 text-[10px] font-bold">
+                                {{ receipts.length }}
+                            </span>
+                        </button>
+
+                        <!-- Bank statement import toggle -->
+                        <button @click="showBankImport = !showBankImport"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                            :class="showBankImport
+                                ? 'bg-teal-600 text-white border-teal-600'
+                                : 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-700 hover:bg-teal-50'">
+                            <BuildingLibraryIcon class="h-3.5 w-3.5" />
+                            Import Bank Statement
+                        </button>
+
+                        <!-- Pre-fill summary badge -->
+                        <span v-if="Object.keys(prefillApplied).length"
+                            class="ml-auto text-[10px] text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/40 rounded-full px-2 py-0.5">
+                            {{ Object.keys(prefillApplied).length }} fields pre-filled
+                        </span>
+                    </div>
+
+                    <!-- ── RECEIPT CAPTURE PANEL ── -->
+                    <div v-if="showReceiptPanel && !isLocked"
+                        class="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-800 shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-between px-5 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800">
+                            <div class="flex items-center gap-2">
+                                <ReceiptPercentIcon class="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                <h2 class="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                                    Purchase Receipts — {{ selectedMonth }} {{ selectedYear }}
+                                </h2>
+                            </div>
+                            <button v-if="receipts.length" @click="applyReceiptTotals"
+                                class="text-xs font-medium px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors">
+                                Apply Totals to Form
+                            </button>
+                        </div>
+                        <div class="p-5 space-y-4">
+                            <!-- Add new receipt form -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Supplier</label>
+                                    <input v-model="receiptForm.supplier_name" type="text" placeholder="Supplier name"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Invoice #</label>
+                                    <input v-model="receiptForm.invoice_number" type="text" placeholder="00012345"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Date</label>
+                                    <input v-model="receiptForm.receipt_date" type="date"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Description</label>
+                                    <input v-model="receiptForm.description" type="text" placeholder="Item description"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Category</label>
+                                    <select v-model="receiptForm.expense_category"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none">
+                                        <option v-for="(label, key) in receiptCategories" :key="key" :value="key">{{ label }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Amount (before VAT)</label>
+                                    <input v-model="receiptForm.amount_before_vat" type="number" min="0" step="0.01" placeholder="0.00"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">VAT Amount</label>
+                                    <input v-model="receiptForm.vat_amount" type="number" min="0" step="0.01" placeholder="0.00"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none" />
+                                </div>
+                                <div class="flex items-center gap-2 pt-5">
+                                    <input v-model="receiptForm.has_vat_receipt" type="checkbox" id="has_vat" class="rounded" />
+                                    <label for="has_vat" class="text-xs text-gray-600 dark:text-slate-400">VAT invoice received</label>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Photo / Scan</label>
+                                    <input type="file" accept="image/*,.pdf"
+                                        @change="e => receiptForm.image = e.target.files[0]"
+                                        class="w-full text-xs text-gray-600 dark:text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200" />
+                                </div>
+                                <div class="flex items-end">
+                                    <button @click="submitReceipt" :disabled="receiptSubmitting || !receiptForm.amount_before_vat"
+                                        class="w-full px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
+                                        <PlusIcon class="h-4 w-4" />
+                                        {{ receiptSubmitting ? 'Saving…' : 'Add Receipt' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Receipt list -->
+                            <div v-if="receiptsLoading" class="text-xs text-gray-500 py-2">Loading receipts…</div>
+                            <div v-else-if="receipts.length === 0" class="text-xs text-gray-500 py-2">No receipts captured for this period yet.</div>
+                            <div v-else class="overflow-x-auto">
+                                <table class="w-full text-xs">
+                                    <thead>
+                                        <tr class="text-left text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-slate-700">
+                                            <th class="pb-2 pr-3">Supplier</th>
+                                            <th class="pb-2 pr-3">Date</th>
+                                            <th class="pb-2 pr-3">Invoice #</th>
+                                            <th class="pb-2 pr-3">Category</th>
+                                            <th class="pb-2 pr-3 text-right">Amount</th>
+                                            <th class="pb-2 pr-3 text-right">VAT</th>
+                                            <th class="pb-2 text-center">VAT Doc</th>
+                                            <th class="pb-2"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100 dark:divide-slate-700">
+                                        <tr v-for="r in receipts" :key="r.id" class="hover:bg-gray-50 dark:hover:bg-slate-700/30">
+                                            <td class="py-1.5 pr-3 font-medium">{{ r.supplier_name || '—' }}</td>
+                                            <td class="py-1.5 pr-3 text-gray-500">{{ r.receipt_date || '—' }}</td>
+                                            <td class="py-1.5 pr-3 text-gray-500 font-mono">{{ r.invoice_number || '—' }}</td>
+                                            <td class="py-1.5 pr-3">{{ receiptCategories[r.expense_category] || r.expense_category }}</td>
+                                            <td class="py-1.5 pr-3 text-right font-mono">{{ fmt(r.amount_before_vat) }}</td>
+                                            <td class="py-1.5 pr-3 text-right font-mono text-gray-500">{{ fmt(r.vat_amount) }}</td>
+                                            <td class="py-1.5 text-center">
+                                                <span v-if="r.has_vat_receipt" class="text-emerald-600">✓</span>
+                                                <span v-else class="text-gray-400">—</span>
+                                            </td>
+                                            <td class="py-1.5 pl-2">
+                                                <button @click="deleteReceipt(r.id)" class="text-red-400 hover:text-red-600">
+                                                    <TrashIcon class="h-3.5 w-3.5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot class="border-t-2 border-gray-300 dark:border-slate-600">
+                                        <tr class="font-semibold text-gray-700 dark:text-slate-300">
+                                            <td colspan="4" class="pt-1.5 pr-3">Total</td>
+                                            <td class="pt-1.5 pr-3 text-right font-mono">{{ fmt(receipts.reduce((s,r) => s + r.amount_before_vat, 0)) }}</td>
+                                            <td class="pt-1.5 pr-3 text-right font-mono">{{ fmt(receipts.reduce((s,r) => s + r.vat_amount, 0)) }}</td>
+                                            <td colspan="2"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── BANK STATEMENT IMPORT PANEL ── -->
+                    <div v-if="showBankImport && !isLocked && bankAccounts.length"
+                        class="bg-white dark:bg-slate-800 rounded-xl border border-teal-200 dark:border-teal-800 shadow-sm overflow-hidden">
+                        <div class="flex items-center gap-2 px-5 py-3 bg-teal-50 dark:bg-teal-900/20 border-b border-teal-100 dark:border-teal-800">
+                            <BuildingLibraryIcon class="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                            <h2 class="text-sm font-semibold text-teal-900 dark:text-teal-300">Import Bank Statement</h2>
+                        </div>
+                        <div class="p-5 space-y-4">
+                            <p class="text-xs text-gray-500 dark:text-slate-400">
+                                Upload a CSV bank statement. The system will detect the closing balance, loans, and transfers automatically.
+                            </p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Bank Account</label>
+                                    <select v-model="bankImportAccountId"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none">
+                                        <option v-for="acc in bankAccounts" :key="acc.id" :value="acc.id">
+                                            {{ acc.bank_name }} — {{ acc.account_number }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Statement File (CSV)</label>
+                                    <input type="file" accept=".csv,.txt,.xls,.xlsx"
+                                        @change="e => bankImportFile = e.target.files[0]"
+                                        class="w-full text-xs text-gray-600 dark:text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-teal-100 file:text-teal-700 hover:file:bg-teal-200" />
+                                </div>
+                            </div>
+                            <button @click="importBankStatement" :disabled="bankImporting || !bankImportFile"
+                                class="px-4 py-2 text-sm font-medium bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors flex items-center gap-1.5">
+                                <ArrowPathIcon class="h-4 w-4" :class="{'animate-spin': bankImporting}" />
+                                {{ bankImporting ? 'Parsing…' : 'Parse Statement' }}
+                            </button>
+
+                            <!-- Result preview -->
+                            <div v-if="bankImportResult" class="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-4 space-y-2">
+                                <p class="text-xs font-semibold text-teal-800 dark:text-teal-200">
+                                    Detected from {{ bankImportResult.row_count }} rows — {{ bankImportResult.bank_account_label }}
+                                </p>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                                    <div class="bg-white dark:bg-slate-800 rounded p-2">
+                                        <p class="text-gray-500 dark:text-slate-400">Closing Balance</p>
+                                        <p class="font-mono font-bold text-gray-900 dark:text-white">{{ bankImportResult.closing_balance !== null ? fmt(bankImportResult.closing_balance) : '—' }}</p>
+                                    </div>
+                                    <div v-if="bankImportResult.loan_amount > 0" class="bg-white dark:bg-slate-800 rounded p-2">
+                                        <p class="text-gray-500 dark:text-slate-400">Bank Loan</p>
+                                        <p class="font-mono font-bold text-gray-900 dark:text-white">{{ fmt(bankImportResult.loan_amount) }}</p>
+                                    </div>
+                                    <div v-if="bankImportResult.transfer_in > 0" class="bg-white dark:bg-slate-800 rounded p-2">
+                                        <p class="text-gray-500 dark:text-slate-400">Transfer In</p>
+                                        <p class="font-mono font-bold text-gray-900 dark:text-white">{{ fmt(bankImportResult.transfer_in) }}</p>
+                                    </div>
+                                </div>
+                                <div v-if="bankImportResult.errors.length" class="text-xs text-amber-700 dark:text-amber-400">
+                                    ⚠ {{ bankImportResult.errors.join(' ') }}
+                                </div>
+                                <button @click="applyBankImportResult"
+                                    class="mt-2 px-4 py-1.5 text-xs font-medium bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors">
+                                    Apply to Bank Balance Fields
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Sheet-sourced ledger fields: read-only in report mode -->
                     <fieldset :disabled="reportMode" class="space-y-5 m-0 p-0 border-0 min-w-0 disabled:opacity-95">
 
@@ -797,18 +1220,37 @@ const exportLedgerToPDF = () => {
                         </div>
                         <div class="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{{ t('beginning_inventory') }}</label>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
+                                    {{ t('beginning_inventory') }}
+                                    <span v-if="prefillApplied.beginning_inventory" class="ml-1 text-[10px] text-indigo-600 dark:text-indigo-400 font-normal">⚡ auto-filled</span>
+                                </label>
                                 <input v-model="form.beginning_inventory" type="number" min="0" step="0.01" placeholder="0.00"
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                    :class="{'border-red-500': form.errors.beginning_inventory, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                    class="w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    :class="{
+                                        'border-red-500': form.errors.beginning_inventory,
+                                        'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked,
+                                        'border-indigo-400 dark:border-indigo-500 ring-1 ring-indigo-300': prefillApplied.beginning_inventory,
+                                        'border-gray-300 dark:border-slate-600': !prefillApplied.beginning_inventory && !form.errors.beginning_inventory,
+                                    }"
                                     :readonly="isLocked" />
                                 <p v-if="form.errors.beginning_inventory" class="mt-1 text-xs text-red-500">{{ form.errors.beginning_inventory }}</p>
+                                <p v-if="prefillApplied.beginning_inventory && prefillSuggestions?.source?.beginning_inventory" class="mt-0.5 text-[10px] text-indigo-500 dark:text-indigo-400">
+                                    {{ prefillSuggestions.source.beginning_inventory }}
+                                </p>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{{ t('purchases') }}</label>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
+                                    {{ t('purchases') }}
+                                    <span v-if="prefillApplied.purchases" class="ml-1 text-[10px] text-indigo-600 dark:text-indigo-400 font-normal">⚡ from receipts</span>
+                                </label>
                                 <input v-model="form.purchases" type="number" min="0" step="0.01" placeholder="0.00"
-                                    class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                    :class="{'border-red-500': form.errors.purchases, 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                    class="w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    :class="{
+                                        'border-red-500': form.errors.purchases,
+                                        'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked,
+                                        'border-indigo-400 dark:border-indigo-500 ring-1 ring-indigo-300': prefillApplied.purchases,
+                                        'border-gray-300 dark:border-slate-600': !prefillApplied.purchases && !form.errors.purchases,
+                                    }"
                                     :readonly="isLocked" />
                                 <p v-if="form.errors.purchases" class="mt-1 text-xs text-red-500">{{ form.errors.purchases }}</p>
                             </div>
@@ -900,7 +1342,10 @@ const exportLedgerToPDF = () => {
                                 <!-- Visible field -->
                                 <div v-else>
                                     <div class="flex items-center justify-between mb-1">
-                                        <label class="text-xs font-medium text-gray-600 dark:text-slate-400">{{ t(field.label) }}</label>
+                                        <label class="text-xs font-medium text-gray-600 dark:text-slate-400">
+                                            {{ t(field.label) }}
+                                            <span v-if="prefillApplied[field.key]" class="ml-1 text-[10px] text-indigo-500 font-normal">⚡ fixed</span>
+                                        </label>
                                         <button v-if="!isLocked" type="button" @click="toggleExpenseField(field.key)"
                                                 class="text-gray-300 hover:text-red-400 dark:hover:text-red-400 transition-colors"
                                                 :title="'Hide ' + t(field.label)">
@@ -908,8 +1353,13 @@ const exportLedgerToPDF = () => {
                                         </button>
                                     </div>
                                     <input v-model="form[field.key]" type="number" min="0" step="0.01" placeholder="0.00"
-                                        class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                        :class="{'border-red-500': form.errors[field.key], 'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked}"
+                                        class="w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        :class="{
+                                            'border-red-500': form.errors[field.key],
+                                            'bg-gray-50 dark:bg-slate-800/50 cursor-not-allowed': isLocked,
+                                            'border-indigo-400 dark:border-indigo-500 ring-1 ring-indigo-300': prefillApplied[field.key],
+                                            'border-gray-300 dark:border-slate-600': !prefillApplied[field.key] && !form.errors[field.key],
+                                        }"
                                         :readonly="isLocked" />
                                     <p v-if="form.errors[field.key]" class="mt-1 text-xs text-red-500">{{ form.errors[field.key] }}</p>
                                 </div>

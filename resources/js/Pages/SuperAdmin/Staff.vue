@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { PlusIcon, XMarkIcon, BriefcaseIcon, TagIcon, EnvelopeIcon } from '@heroicons/vue/24/outline';
+import { PlusIcon, XMarkIcon, BriefcaseIcon, TagIcon, EnvelopeIcon, ArrowPathIcon, ChevronDownIcon } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -33,6 +33,7 @@ const props = defineProps({
     serviceTypes: Array,
     positions: Object,
     teams: { type: Object, default: () => ({}) },
+    announcements: { type: Array, default: () => [] },
 });
 
 const viewMode = ref('list');
@@ -208,6 +209,31 @@ const sendEmail = () => {
             emailForm.reset();
         },
     });
+};
+
+// --- Announcement history ---
+const expandedId = ref(null);
+const toggleExpand = (id) => {
+    expandedId.value = expandedId.value === id ? null : id;
+};
+
+const statusMeta = (status) => ({
+    queued:  { label: 'Queued',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    sending: { label: 'Sending', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    sent:    { label: 'Sent',    cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    partial: { label: 'Partial', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+    failed:  { label: 'Failed',  cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+}[status] || { label: status, cls: 'bg-slate-100 text-slate-600' });
+
+const formatDate = (iso) => {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+};
+
+const refreshHistory = () => {
+    router.reload({ only: ['announcements'], preserveScroll: true });
 };
 </script>
 
@@ -421,6 +447,61 @@ const sendEmail = () => {
                             </SubmitBtn>
                         </div>
                     </form>
+                </div>
+
+                <!-- SENT ANNOUNCEMENTS HISTORY -->
+                <div class="mt-8">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                            {{ $t('sent_announcements') || 'Sent announcements' }}
+                        </h3>
+                        <button type="button" @click="refreshHistory" class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                            <ArrowPathIcon class="h-4 w-4" />
+                            {{ $t('refresh') || 'Refresh' }}
+                        </button>
+                    </div>
+
+                    <div v-if="announcements.length === 0" class="rounded-2xl ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 px-6 py-10 text-center text-sm text-slate-400">
+                        {{ $t('no_announcements') || 'No announcements have been sent yet.' }}
+                    </div>
+
+                    <div v-else class="space-y-3">
+                        <div v-for="a in announcements" :key="a.id" class="rounded-2xl ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+                            <button type="button" @click="toggleExpand(a.id)" class="w-full text-left px-5 py-4 flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="font-bold text-slate-900 dark:text-white truncate">{{ a.subject }}</span>
+                                        <span :class="['rounded-full px-2 py-0.5 text-[10px] font-bold', statusMeta(a.status).cls]">{{ statusMeta(a.status).label }}</span>
+                                    </div>
+                                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{{ a.body }}</p>
+                                    <div class="mt-1.5 flex items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-400 flex-wrap">
+                                        <span>{{ a.recipient_count }} {{ $t('recipients') || 'recipients' }}</span>
+                                        <span v-if="a.status !== 'queued' && a.status !== 'sending'">· {{ a.sent_count }} sent<template v-if="a.failed_count"> / {{ a.failed_count }} failed</template></span>
+                                        <span>· {{ a.sender || '—' }}</span>
+                                        <span>· {{ formatDate(a.created_at) }}</span>
+                                    </div>
+                                </div>
+                                <ChevronDownIcon :class="['h-4 w-4 text-slate-400 flex-shrink-0 transition-transform', expandedId === a.id ? 'rotate-180' : '']" />
+                            </button>
+
+                            <div v-if="expandedId === a.id" class="px-5 pb-5 pt-1 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">{{ $t('message') || 'Message' }}</p>
+                                    <p class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">{{ a.body }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{{ $t('recipients') || 'Recipients' }} ({{ a.recipient_count }})</p>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <span v-for="r in a.recipients" :key="r.id || r.email" :title="r.email" class="inline-flex items-center rounded-lg bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-200">
+                                            {{ r.name }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <p v-if="a.sent_at" class="text-[11px] text-slate-400">{{ $t('sent') || 'Sent' }}: {{ formatDate(a.sent_at) }}</p>
+                                <p v-if="a.failed_count > 0" class="text-[11px] text-red-500 font-semibold">{{ a.failed_count }} message(s) failed to send. Check the mail configuration.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\StaffBroadcastMail;
+use App\Jobs\SendAnnouncementJob;
+use App\Models\Announcement;
 use App\Models\Branch;
 use App\Models\ServiceType;
 use App\Models\StaffUser;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -67,6 +67,24 @@ class StaffController extends Controller
         $branches     = Branch::where('is_active', true)->get(['id', 'name']);
         $serviceTypes = ServiceType::where('is_active', true)->get(['id', 'name']);
 
+        $announcements = Announcement::with('sender:id,name')
+            ->latest()
+            ->take(20)
+            ->get()
+            ->map(fn ($a) => [
+                'id'              => $a->id,
+                'subject'         => $a->subject,
+                'body'            => $a->body,
+                'recipient_count' => $a->recipient_count,
+                'sent_count'      => $a->sent_count,
+                'failed_count'    => $a->failed_count,
+                'status'          => $a->status,
+                'recipients'      => $a->recipients,
+                'sender'          => $a->sender?->name,
+                'created_at'      => $a->created_at?->toIso8601String(),
+                'sent_at'         => $a->sent_at?->toIso8601String(),
+            ]);
+
         return Inertia::render('SuperAdmin/Staff', [
             'staff'        => $staff,
             'branches'     => $branches,
@@ -74,6 +92,7 @@ class StaffController extends Controller
             'positions'    => StaffUser::POSITIONS,
             'teams'        => StaffUser::TEAMS,
             'positionTiers' => StaffUser::POSITION_TIERS,
+            'announcements' => $announcements,
         ]);
     }
 
@@ -230,8 +249,9 @@ class StaffController extends Controller
     }
 
     /**
-     * Send a one-off email to a set of staff members selected from the list.
-     * Delivered synchronously so it works without a running queue worker.
+     * Queue an announcement email to a set of selected staff members. The
+     * actual delivery happens in the background via SendAnnouncementJob, and
+     * the announcement is persisted so it shows up in the sent history.
      */
     public function sendBulkEmail(Request $request)
     {
@@ -252,29 +272,25 @@ class StaffController extends Controller
             return back()->with('error', 'None of the selected users have an email address.');
         }
 
-        $sent = 0;
-        $failed = [];
+        $announcement = Announcement::create([
+            'sender_id'       => auth()->id(),
+            'subject'         => $validated['subject'],
+            'body'            => $validated['message'],
+            'recipients'      => $recipients->map(fn ($u) => [
+                'id'    => $u->id,
+                'name'  => $u->name,
+                'email' => $u->email,
+            ])->all(),
+            'recipient_count' => $recipients->count(),
+            'status'          => 'queued',
+        ]);
 
-        foreach ($recipients as $recipient) {
-            try {
-                Mail::to($recipient->email)->send(
-                    new StaffBroadcastMail($validated['subject'], $validated['message'], $recipient->name)
-                );
-                $sent++;
-            } catch (\Throwable $e) {
-                report($e);
-                $failed[] = $recipient->email;
-            }
-        }
+        SendAnnouncementJob::dispatch($announcement);
 
-        if (! empty($failed)) {
-            return back()->with(
-                'warning',
-                "Sent to {$sent} of {$recipients->count()}. Failed: " . implode(', ', $failed) . '. Check the mail configuration.'
-            );
-        }
-
-        return back()->with('success', "Message sent to {$sent} staff member(s).");
+        return back()->with(
+            'success',
+            "Announcement queued — sending to {$recipients->count()} staff member(s) in the background."
+        );
     }
 
     public function destroy(User $staff)

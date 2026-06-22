@@ -288,6 +288,25 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/ledger/clients/{client}/sheet/apply', [MonthlyLedgerController::class, 'applySheetTemplate'])
         ->middleware('can:enter ledger data')->name('ledger.sheet.apply');
 
+    // ── Ledger Automation ──
+    // Pre-fill suggestions (beginning inventory carry-forward, fixed expense patterns, receipt totals)
+    Route::get('/ledger/clients/{client}/prefill', [MonthlyLedgerController::class, 'prefill'])
+        ->middleware('can:enter ledger data')->name('ledger.prefill');
+
+    // Bank statement CSV import → returns closing balance + movement figures
+    Route::post('/ledger/clients/{client}/bank-statement', [MonthlyLedgerController::class, 'importBankStatement'])
+        ->middleware('can:enter ledger data')->name('ledger.bank-statement.import');
+
+    // Purchase receipt capture
+    Route::get('/ledger/clients/{client}/receipts', [\App\Http\Controllers\PurchaseReceiptController::class, 'index'])
+        ->middleware('can:enter ledger data')->name('ledger.receipts.index');
+    Route::post('/ledger/clients/{client}/receipts', [\App\Http\Controllers\PurchaseReceiptController::class, 'store'])
+        ->middleware('can:enter ledger data')->name('ledger.receipts.store');
+    Route::delete('/ledger/receipts/{receipt}', [\App\Http\Controllers\PurchaseReceiptController::class, 'destroy'])
+        ->middleware('can:enter ledger data')->name('ledger.receipts.destroy');
+    Route::get('/ledger/clients/{client}/receipts/summarize', [\App\Http\Controllers\PurchaseReceiptController::class, 'summarize'])
+        ->middleware('can:enter ledger data')->name('ledger.receipts.summarize');
+
     // Downloads (verified ledger only — enforced in controller via the model scope for Clients)
     Route::get('/ledger/entries/{ledger}/download/pdf', [MonthlyLedgerController::class, 'downloadPdf'])
         ->middleware('can:download ledger reports')->name('ledger.download.pdf');
