@@ -8,7 +8,9 @@ use App\Models\BankAccount;
 use App\Models\BankAccountBalance;
 use App\Models\Client;
 use App\Models\MonthlyLedger;
+use App\Services\BankStatementParserService;
 use App\Services\GoogleSheetsClient;
+use App\Services\LedgerPreFillService;
 use App\Services\LedgerSheetSyncService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -419,6 +421,59 @@ class MonthlyLedgerController extends Controller
                 ]
             );
         }
+    }
+
+    /**
+     * Return smart pre-fill suggestions for a new ledger entry.
+     * Called via GET before the form is opened; the Vue component applies
+     * the values and marks pre-filled fields visually.
+     */
+    public function prefill(Request $request, Client $client, LedgerPreFillService $service)
+    {
+        abort_unless($client->exists, 403);
+
+        $validated = $request->validate([
+            'eth_month' => 'required|string|in:' . implode(',', MonthlyLedger::ethiopianMonths()),
+            'eth_year'  => 'required|integer|min:2000|max:2100',
+        ]);
+
+        $suggestions = $service->suggest($client, $validated['eth_month'], (int) $validated['eth_year']);
+
+        return response()->json($suggestions);
+    }
+
+    /**
+     * Parse an uploaded bank statement CSV and return the detected
+     * closing balance + movement figures. The client selects which bank
+     * account to apply them to, then the ledger form is pre-filled.
+     */
+    public function importBankStatement(Request $request, Client $client, BankStatementParserService $parser)
+    {
+        abort_unless($client->exists, 403);
+
+        $request->validate([
+            'statement'        => 'required|file|mimes:csv,txt,xls,xlsx|max:10240',
+            'bank_account_id'  => 'required|integer|exists:bank_accounts,id',
+        ]);
+
+        $result = $parser->parse($request->file('statement'));
+
+        // Validate the account belongs to this client
+        $account = BankAccount::where('client_id', $client->id)
+            ->where('id', $request->input('bank_account_id'))
+            ->firstOrFail();
+
+        return response()->json([
+            'bank_account_id'   => $account->id,
+            'bank_account_label'=> trim($account->bank_name . ' ' . $account->account_number),
+            'closing_balance'   => $result['closing_balance'],
+            'loan_amount'       => $result['loan_amount'],
+            'lc_margin_release' => $result['lc_margin_release'],
+            'transfer_in'       => $result['transfer_in'],
+            'transfer_reversal' => $result['transfer_reversal'],
+            'row_count'         => $result['row_count'],
+            'errors'            => $result['errors'],
+        ]);
     }
 
     private function currentEthYear(): int
