@@ -282,14 +282,14 @@ class StaffController extends Controller
                 'email' => $u->email,
             ])->all(),
             'recipient_count' => $recipients->count(),
-            'status'          => 'queued',
+            'status'          => 'sending',
         ]);
 
-        SendAnnouncementJob::dispatch($announcement);
+        SendAnnouncementJob::dispatchSync($announcement);
 
         return back()->with(
             'success',
-            "Announcement queued — sending to {$recipients->count()} staff member(s) in the background."
+            "Announcement sent to {$recipients->count()} staff member(s) successfully."
         );
     }
 
