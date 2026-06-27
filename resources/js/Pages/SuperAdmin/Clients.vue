@@ -562,7 +562,7 @@ const currentUserId = computed(() => usePage().props.auth.user.id);
                             <label class="block text-xs font-bold text-slate-450 uppercase tracking-wider mb-1.5">Assigned Staff Account Manager</label>
                             <select v-model="form.assigned_employee_id" class="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
                                 <option value="">-- {{ $t('unassigned') }} --</option>
-                                <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
+                                <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }} <template v-if="emp.email">({{ emp.email }})</template></option>
                             </select>
                             <p v-if="form.errors.assigned_employee_id" class="mt-1 text-xs text-red-600 font-bold">{{ form.errors.assigned_employee_id }}</p>
                         </div>

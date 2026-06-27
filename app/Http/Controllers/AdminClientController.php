@@ -57,10 +57,10 @@ class AdminClientController extends Controller
             ];
         });
         
-        $branches = Branch::all(['id', 'name']);
-        $serviceTypes = ServiceType::where('is_active', true)->get(['id', 'name', 'slug']);
-        $employees = User::role('Employee')->get(['id', 'name', 'branch_id']);
-        $legalStructures = \App\Models\LegalStructure::all(['id', 'name', 'description']);
+        $branches = Branch::orderBy('name', 'asc')->get(['id', 'name']);
+        $serviceTypes = ServiceType::where('is_active', true)->orderBy('name', 'asc')->get(['id', 'name', 'slug']);
+        $employees = User::role('Employee')->orderBy('name', 'asc')->get(['id', 'name', 'email', 'branch_id']);
+        $legalStructures = \App\Models\LegalStructure::orderBy('name', 'asc')->get(['id', 'name', 'description']);
 
         return Inertia::render('SuperAdmin/Clients', [
             'clients' => $clients,

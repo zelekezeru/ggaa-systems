@@ -283,7 +283,7 @@ const executeDelete = () => {
                     <select v-model="form.manager_id" class="mt-1 block w-full rounded-lg border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm transition-colors">
                         <option value="">-- Unassigned --</option>
                         <option v-for="manager in managers" :key="manager.id" :value="manager.id">
-                            {{ manager.name }}<template v-if="manager.roles_label"> — {{ manager.roles_label }}</template>
+                            {{ manager.name }} <template v-if="manager.email">({{ manager.email }})</template><template v-if="manager.roles_label"> — {{ manager.roles_label }}</template>
                         </option>
                     </select>
                 </div>

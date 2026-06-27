@@ -27,6 +27,7 @@ class SuperAdminController extends Controller
                     $query->where('tasks.status', 'Done');
                 }
             ])
+            ->orderBy('name', 'asc')
             ->get()
             ->map(function ($branch) {
                 // Calculate compliance dynamically based on task completion
@@ -58,6 +59,7 @@ class SuperAdminController extends Controller
         $staff = User::role('Employee')
             ->with('branch')
             ->withCount('clients')
+            ->orderBy('name', 'asc')
             ->get()
             ->map(function ($employee) {
                 $employee->capacity_points = $employee->getCurrentCapacityLoad();
@@ -128,7 +130,7 @@ class SuperAdminController extends Controller
             ->values();
 
         // Branch compliance snapshot
-        $branches = Branch::with(['clients.tasks'])->get()->map(function ($branch) {
+        $branches = Branch::with(['clients.tasks'])->orderBy('name', 'asc')->get()->map(function ($branch) {
             $allTasks   = $branch->clients->flatMap->tasks;
             $total      = $allTasks->count();
             $done       = $allTasks->where('status', 'Done')->count();

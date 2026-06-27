@@ -31,7 +31,7 @@ class AvailabilityController extends Controller
         $maxCapacity = (int) config('workforce.max_capacity');
 
         // Branch filter — Branch Managers are locked to their branch.
-        $branchesQuery = Branch::with(['manager:id,name'])->where('is_active', true);
+        $branchesQuery = Branch::with(['manager:id,name'])->where('is_active', true)->orderBy('name', 'asc');
         if ($user->hasRole('Branch Manager') && ! $user->hasRole('Super Admin')) {
             $branchesQuery->where('id', $user->branch_id);
         }

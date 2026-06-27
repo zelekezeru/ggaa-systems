@@ -30,7 +30,8 @@ class EvaluationController extends Controller
 
         $staffQuery = User::query()
             ->whereHas('staffProfile', fn ($q) => $q->where('is_active', true))
-            ->with(['staffProfile', 'branch', 'roles:id,name']);
+            ->with(['staffProfile', 'branch', 'roles:id,name'])
+            ->orderBy('name', 'asc');
 
         // Only GM (Super Admin) and Operation Manager have firm-wide reach.
         // Every other evaluator (Branch Manager, Team Leader, …) is confined to

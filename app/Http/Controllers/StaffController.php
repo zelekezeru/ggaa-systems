@@ -55,6 +55,7 @@ class StaffController extends Controller
             ->whereHas('staffProfile')
             ->with(['branch', 'serviceTypes', 'staffProfile', 'roles:id,name'])
             ->withCount('clients')
+            ->orderBy('name', 'asc')
             ->get()
             ->map(function ($employee) {
                 $employee->capacity_points = $employee->getCurrentCapacityLoad();
@@ -64,8 +65,8 @@ class StaffController extends Controller
                 return $employee;
             });
 
-        $branches     = Branch::where('is_active', true)->get(['id', 'name']);
-        $serviceTypes = ServiceType::where('is_active', true)->get(['id', 'name']);
+        $branches     = Branch::where('is_active', true)->orderBy('name', 'asc')->get(['id', 'name']);
+        $serviceTypes = ServiceType::where('is_active', true)->orderBy('name', 'asc')->get(['id', 'name']);
 
         $announcements = Announcement::with('sender:id,name')
             ->latest()

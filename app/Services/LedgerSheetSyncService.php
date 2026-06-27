@@ -19,7 +19,7 @@ use RuntimeException;
  */
 class LedgerSheetSyncService
 {
-    private const MONTHS = 'meskeram|tiqimt|hidar|tahisas|tirr|yeketit|megabit|miyaziya|ginbot|sene|hamle|nehase|pagume';
+    private const MONTHS = 'meskeram|tiqimt|hidar|tahisas|tirr|yeketit|megabit|miyaziya|ginbot|sene|hamle|nehase';
 
     public function __construct(private GoogleSheetsClient $sheets)
     {

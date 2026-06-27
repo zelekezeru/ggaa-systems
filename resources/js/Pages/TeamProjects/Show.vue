@@ -318,7 +318,7 @@ const daysRemaining = computed(() => {
                                     <select v-model="memberForm.user_id" class="md:col-span-7 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
                                         <option value="">Select staff member…</option>
                                         <option v-for="s in staffOptions" :key="s.id" :value="s.id">
-                                            {{ s.name }} — {{ s.position_label }} (load: {{ s.capacity_load }})
+                                            {{ s.name }} <template v-if="s.email">({{ s.email }})</template> — {{ s.position_label }} (load: {{ s.capacity_load }})
                                         </option>
                                     </select>
                                     <input v-model.number="memberForm.complexity_share" type="number" min="1" max="10"

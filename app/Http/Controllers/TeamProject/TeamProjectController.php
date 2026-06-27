@@ -61,8 +61,8 @@ class TeamProjectController extends Controller
         abort_unless($user->can('manage team projects'), 403);
 
         return Inertia::render('TeamProjects/Create', [
-            'branches'      => Branch::where('is_active', true)->get(['id', 'name']),
-            'clients'       => Client::query()->get(['id', 'company_name', 'branch_id']),
+            'branches'      => Branch::where('is_active', true)->orderBy('name', 'asc')->get(['id', 'name']),
+            'clients'       => Client::query()->orderBy('company_name', 'asc')->get(['id', 'company_name', 'branch_id']),
             'staffOptions'  => $this->staffOptions(),
             'maxCapacity'   => $this->service->getMaxCapacity(),
         ]);
@@ -191,8 +191,8 @@ class TeamProjectController extends Controller
 
         return Inertia::render('TeamProjects/Edit', [
             'project'       => $teamProject,
-            'branches'      => Branch::where('is_active', true)->get(['id', 'name']),
-            'clients'       => Client::query()->get(['id', 'company_name', 'branch_id']),
+            'branches'      => Branch::where('is_active', true)->orderBy('name', 'asc')->get(['id', 'name']),
+            'clients'       => Client::query()->orderBy('company_name', 'asc')->get(['id', 'company_name', 'branch_id']),
             'staffOptions'  => $this->staffOptions(),
             'maxCapacity'   => $this->service->getMaxCapacity(),
         ]);
@@ -403,6 +403,7 @@ class TeamProjectController extends Controller
         return User::query()
             ->whereHas('staffProfile', fn ($q) => $q->where('is_active', true))
             ->with('staffProfile:id,user_id,position,position_title')
+            ->orderBy('name', 'asc')
             ->get(['id', 'name', 'email', 'branch_id'])
             ->map(function (User $u) {
                 return [

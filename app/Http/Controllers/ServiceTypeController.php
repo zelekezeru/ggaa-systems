@@ -14,7 +14,7 @@ class ServiceTypeController extends Controller
         abort_unless(auth()->user()->hasRole('Super Admin'), 403);
         
         return Inertia::render('SuperAdmin/ServiceTypes', [
-            'serviceTypes' => ServiceType::all(),
+            'serviceTypes' => ServiceType::orderBy('name', 'asc')->get(),
         ]);
     }
 

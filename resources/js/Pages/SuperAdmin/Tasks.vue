@@ -381,7 +381,7 @@ const atRiskTasks = computed(() => {
                 >
                     <option value="all">All Employees</option>
                     <option value="unassigned">Unassigned</option>
-                    <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
+                    <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }} <template v-if="emp.email">({{ emp.email }})</template></option>
                 </select>
 
                 <!-- Client Filter -->
@@ -478,7 +478,7 @@ const atRiskTasks = computed(() => {
                                         @change="e => assignTask(task, e.target.value)"
                                     >
                                         <option value="">Assign to...</option>
-                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
+                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }} <template v-if="emp.email">({{ emp.email }})</template></option>
                                     </select>
                                 </div>
                             </td>
@@ -586,7 +586,7 @@ const atRiskTasks = computed(() => {
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign to Employee</label>
                                     <select v-model="createForm.assigned_user_id" class="w-full rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                         <option value="">Leave unassigned</option>
-                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
+                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }} <template v-if="emp.email">({{ emp.email }})</template></option>
                                     </select>
                                 </div>
                                 <div class="col-span-2">
@@ -661,7 +661,7 @@ const atRiskTasks = computed(() => {
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned Employee</label>
                                     <select v-model="editForm.assigned_user_id" class="w-full rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                         <option value="">Unassigned</option>
-                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }}</option>
+                                        <option v-for="emp in employees" :key="emp.id" :value="emp.id">{{ emp.name }} <template v-if="emp.email">({{ emp.email }})</template></option>
                                     </select>
                                 </div>
                                 <div class="col-span-2">

@@ -197,9 +197,8 @@ class MonthlyLedger extends Model
     public static function ethiopianMonths(): array
     {
         return [
-            'Meskeram', 'Tiqimt', 'Hidar', 'Tahisas',
-            'Tirr', 'Yeketit', 'Megabit', 'Miyaziya',
-            'Ginbot', 'Sene', 'Hamle', 'Nehase', 'Pagume',
+            'Hamle', 'Nehase', 'Meskeram', 'Tiqimt', 'Hidar', 'Tahisas',
+            'Tirr', 'Yeketit', 'Megabit', 'Miyaziya', 'Ginbot', 'Sene',
         ];
     }
 }

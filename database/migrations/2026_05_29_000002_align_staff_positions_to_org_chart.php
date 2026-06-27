@@ -21,7 +21,9 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Relax the enum into a string column (MySQL-safe, no dbal needed).
-        DB::statement("ALTER TABLE staff_users MODIFY position VARCHAR(50) NOT NULL DEFAULT 'junior_accountant'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE staff_users MODIFY position VARCHAR(50) NOT NULL DEFAULT 'junior_accountant'");
+        }
 
         // 2. Remap legacy enum values → org-chart positions (authority preserved).
         $map = [
@@ -73,6 +75,8 @@ return new class extends Migration
             DB::table('staff_users')->where('position', $new)->update(['position' => $old]);
         }
 
-        DB::statement("ALTER TABLE staff_users MODIFY position ENUM('employee','manager','team_leader','admin','finance','other') NOT NULL DEFAULT 'employee'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE staff_users MODIFY position ENUM('employee','manager','team_leader','admin','finance','other') NOT NULL DEFAULT 'employee'");
+        }
     }
 };

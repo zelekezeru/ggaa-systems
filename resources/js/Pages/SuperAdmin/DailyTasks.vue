@@ -208,7 +208,7 @@ function formatTime(t) {
                     class="text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 rounded-xl px-3 py-2"
                 >
                     <option value="">{{ t('all_employees') }}</option>
-                    <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option>
+                    <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }} <template v-if="e.email">({{ e.email }})</template></option>
                 </select>
 
                 <select
@@ -389,7 +389,7 @@ function formatTime(t) {
                                     class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
                                     <option value="" disabled>{{ t('select_employee') }}</option>
-                                    <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option>
+                                    <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }} <template v-if="e.email">({{ e.email }})</template></option>
                                 </select>
                                 <p v-if="form.errors.assigned_to" class="text-xs text-red-500 mt-1">{{ form.errors.assigned_to }}</p>
                             </div>

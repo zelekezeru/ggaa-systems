@@ -51,11 +51,11 @@ class DailyTaskController extends Controller
         if ($actor->hasRole('Branch Manager') && ! $actor->hasRole('Super Admin')) {
             $employeesQuery->where('branch_id', $actor->branch_id);
         }
-        $employees = $employeesQuery->get(['id', 'name', 'branch_id']);
+        $employees = $employeesQuery->orderBy('name', 'asc')->get(['id', 'name', 'email', 'branch_id']);
 
         $branches = $actor->hasRole('Super Admin')
-            ? Branch::all(['id', 'name'])
-            : Branch::where('id', $actor->branch_id)->get(['id', 'name']);
+            ? Branch::orderBy('name', 'asc')->get(['id', 'name'])
+            : Branch::where('id', $actor->branch_id)->orderBy('name', 'asc')->get(['id', 'name']);
 
         // Stats scoped to current actor and selected date
         $statsBase = DailyTask::withoutGlobalScopes()->whereDate('scheduled_date', $date);

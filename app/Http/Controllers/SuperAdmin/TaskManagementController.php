@@ -58,13 +58,15 @@ class TaskManagementController extends Controller
         if ($user->hasRole('Branch Manager') && ! $user->hasRole('Super Admin')) {
             $employeesQuery->where('branch_id', $user->branch_id);
         }
-        $employees = $employeesQuery->get(['id', 'name', 'branch_id'])->map(function ($u) {
-            $u->current_load = $u->getCurrentCapacityLoad();
-            $u->capacity_percent = $u->capacity_percent;
-            return $u;
-        });
-        $clients   = Client::get(['id', 'company_name', 'complexity_score']);
-        $templates = TaskTemplate::all(['id', 'name']);
+        $employees = $employeesQuery->orderBy('name', 'asc')
+            ->get(['id', 'name', 'email', 'branch_id'])
+            ->map(function ($u) {
+                $u->current_load = $u->getCurrentCapacityLoad();
+                $u->capacity_percent = $u->capacity_percent;
+                return $u;
+            });
+        $clients   = Client::orderBy('company_name', 'asc')->get(['id', 'company_name', 'complexity_score']);
+        $templates = TaskTemplate::orderBy('name', 'asc')->get(['id', 'name']);
 
         $statsBase = Task::query();
         $stats = [

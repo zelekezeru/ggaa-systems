@@ -28,9 +28,9 @@ class RoleManagementController extends Controller
         $this->authorizeSuperAdmin();
 
         return Inertia::render('SuperAdmin/Roles', [
-            'roles'       => Role::with('permissions')->get(),
-            'permissions' => Permission::withCount('roles')->get(),
-            'users'       => User::with('roles')->get(['id', 'name', 'email', 'created_at']),
+            'roles'       => Role::with('permissions')->orderBy('name', 'asc')->get(),
+            'permissions' => Permission::withCount('roles')->orderBy('name', 'asc')->get(),
+            'users'       => User::with('roles')->orderBy('name', 'asc')->get(['id', 'name', 'email', 'created_at']),
         ]);
     }
 

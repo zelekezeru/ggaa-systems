@@ -146,7 +146,7 @@ const submit = () => form.post(route('team-projects.store'));
                         <select v-model="form.team_leader_id" required class="w-full px-4 py-3 rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium">
                             <option value="">Select team leader</option>
                             <option v-for="s in staffOptions" :key="s.id" :value="s.id">
-                                {{ s.name }} — {{ s.position_label || 'Staff' }} (load: {{ s.capacity_load }}/{{ maxCapacity }})
+                                {{ s.name }} <template v-if="s.email">({{ s.email }})</template> — {{ s.position_label || 'Staff' }} (load: {{ s.capacity_load }}/{{ maxCapacity }})
                             </option>
                         </select>
                         <p class="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-widest leading-relaxed">The team leader is the primary contact for the client and oversees project execution.</p>
@@ -169,7 +169,7 @@ const submit = () => form.post(route('team-projects.store'));
                                 <select v-model="m.user_id" required class="w-full px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium">
                                     <option value="">Select staff member</option>
                                     <option v-for="s in memberPool" :key="s.id" :value="s.id">
-                                        {{ s.name }} — {{ s.position_label }} (load: {{ s.capacity_load }}/{{ maxCapacity }})
+                                        {{ s.name }} <template v-if="s.email">({{ s.email }})</template> — {{ s.position_label }} (load: {{ s.capacity_load }}/{{ maxCapacity }})
                                     </option>
                                 </select>
                             </div>
