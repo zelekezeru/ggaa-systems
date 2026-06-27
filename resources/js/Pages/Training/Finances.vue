@@ -1,31 +1,23 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { 
     BanknotesIcon, AcademicCapIcon,
     ChevronLeftIcon, ChevronRightIcon,
-    ArrowLeftIcon, SunIcon, MoonIcon
+    ArrowLeftIcon, SunIcon, MoonIcon,
+    CheckCircleIcon, ExclamationTriangleIcon,
+    CalculatorIcon, DocumentCheckIcon,
+    SparklesIcon
 } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
 const { locale } = useI18n();
 
 const isDark = ref(true);
-const currentSlide = ref(1);
-const totalSlides = 9;
+const currentStep = ref(0); // 0: Overview, 1: Lab 1, 2: Lab 2, 3: Lab 3, 4: Graduation
+const userName = ref('Abebe Kebede');
 
-// Interactive states: live tax calculator
-const mockSales = ref(300000);
-const mockCogs = ref(120000);
-const mockExpenses = ref(30000);
-
-const computedNetProfit = computed(() => mockSales.value - mockCogs.value - mockExpenses.value);
-const computedProfitTax = computed(() => {
-    const nibt = computedNetProfit.value;
-    if (nibt <= 0) return 0;
-    return Math.max(0, (nibt * 0.35) - 24600);
-});
-
+// Load settings
 onMounted(() => {
     const savedTheme = localStorage.getItem('training-theme');
     if (savedTheme === 'light') {
@@ -45,218 +37,221 @@ function setLanguage(lang) {
     localStorage.setItem('locale', lang);
 }
 
-function nextSlide() {
-    if (currentSlide.value < totalSlides) currentSlide.value++;
+// ==========================================
+// LAB 1 STATE: COGS RECONCILER
+// ==========================================
+const inputCogs = ref('');
+const lab1Error = ref('');
+const lab1Passed = ref(false);
+
+function validateLab1() {
+    lab1Error.value = '';
+    // Formula: Starting (150,000) + Purchases (230,000) - Ending (100,000) = 280,000
+    if (parseInt(inputCogs.value) === 280000) {
+        lab1Passed.value = true;
+    } else {
+        if (locale.value === 'en') {
+            lab1Error.value = "❌ Incorrect COGS! Re-calculate: Starting Stock + Purchases - Ending Stock.";
+        } else {
+            lab1Error.value = "❌ የተሳሳተ የዕቃ መግዣ ወጪ! ቀመር፡ የመጀመሪያ ክምችት + አዲስ ግዢ - የመጨረሻ ክምችት።";
+        }
+    }
 }
 
-function prevSlide() {
-    if (currentSlide.value > 1) currentSlide.value--;
+// ==========================================
+// LAB 2 STATE: PROFIT TAX CALCULATOR
+// ==========================================
+const inputTax = ref('');
+const lab2Error = ref('');
+const lab2Passed = ref(false);
+
+function validateLab2() {
+    lab2Error.value = '';
+    // Net Profit: 300,000
+    // Tax Slab: (300,000 * 0.35) - 24,600 = 105,000 - 24,600 = 80,400
+    if (parseInt(inputTax.value) === 80400) {
+        lab2Passed.value = true;
+    } else {
+        if (locale.value === 'en') {
+            lab2Error.value = "❌ Incorrect Tax return value. Apply formula: (Net Profit * 0.35) - 24,600.";
+        } else {
+            lab2Error.value = "❌ የተሳሳተ የትርፍ ግብር ስሌት። ቀመር፡ (የተጣራ ትርፍ * 0.35) - 24,600።";
+        }
+    }
 }
 
-function goToSlide(n) {
-    if (n >= 1 && n <= totalSlides) currentSlide.value = n;
+// ==========================================
+// LAB 3 STATE: INVOICE SETTLEMENT
+// ==========================================
+const selectedDeposit = ref('');
+const invoiceSettled = ref(false);
+const lab3Passed = computed(() => {
+    return invoiceSettled.value;
+});
+
+function settleInvoice() {
+    if (selectedDeposit.value === 'deposit2') {
+        invoiceSettled.value = true;
+    }
 }
 
-const checklistItems = ref([
-    { id: 1, text_en: 'Reconcile invoice numbers to confirm that cash machine receipts correspond directly to physical Z-reports.', text_am: 'የደረሰኝ ቁጥሮችን በመፈተሽ የሽያጭ መመዝገቢያ ማሽን ደረሰኞች ከእውነተኛ ወርሃዊ ሪፖርት ጋር መጣጣማቸውን ያረጋግጡ::', checked: false },
-    { id: 2, text_en: 'Audit COGS starting inventory against the ending stock values of the previous verified month.', text_am: 'የመጀመሪያ ክምችት እቃዎች ዋጋ ካለፈው ወር ከተረጋገጠው የመጨረሻ እቃ ክምችት ዋጋ ጋር እኩል መሆኑን ያረጋግጡ::', checked: false },
-    { id: 3, text_en: 'Verify that electricity, rent, electric (EEU), and depreciation calculations comply with local guidelines.', text_am: 'የቤት ኪራይ፣ የኤሌክትሪክ ክፍያዎች እና የንብረት እርጅና (Depreciation) ስሌቶች ትክክል መሆናቸውን ያረጋግጡ::', checked: false },
-    { id: 4, text_en: 'Lock and verify the ledger record, then print the officially signed PDF report.', text_am: 'ወርሃዊ ሂሳቡን ካረጋገጡ በኋላ ቆልፈው በQR ኮድ የተጠበቀ ይፋዊ የፒዲኤፍ ሪፖርት ያትሙ::', checked: false }
-]);
+// ==========================================
+// STATE SAVING ON GRADUATION
+// ==========================================
+watch(currentStep, (newStep) => {
+    if (newStep === 4) {
+        localStorage.setItem('training-completed-finances', 'true');
+    }
+});
 
-function toggleCheck(item) {
-    item.checked = !item.checked;
-}
-
-const fmt = (v) => new Intl.NumberFormat('en-ET', { minimumFractionDigits: 2 }).format(v);
-
-// Simple and Friendly bilingual slide content
-const slides = {
+// Bilingual content dictionary
+const content = {
     en: {
-        slide1: {
-            badge: "Part 3: Finance & Bookkeeping Track",
-            title: "Reconciling Ledgers & Invoicing",
-            subtitle: "Welcome! This simple guide is designed for our finance specialists. Learn how to double-check monthly ledger details, calculate business taxes, manage billing cycles, and print official PDF reports."
+        backBtn: "Back to Tracks",
+        headerTitle: "Finance Academy",
+        headerSubtitle: "Bookkeeping & Tax Simulator",
+        stepNames: ["Overview", "Lab 1: COGS", "Lab 2: Tax Slab", "Lab 3: Settle", "Graduation 🎓"],
+        
+        overview: {
+            title: "Welcome to GGAA Finance Academy!",
+            desc1: "Finance specialists verify ledger integrity, audit Cost of Goods Sold (COGS), compute corporate profit taxes, and reconcile bank deposit references to settle outstanding service bills.",
+            desc2: "This interactive simulator contains three practical labs that test your precision with inventory reconciliation, profit tax rules, and invoice settlement matching.",
+            startBtn: "Start Finance Training",
         },
-        slide2: {
-            badge: "Part 2: What You Will Handle",
-            title: "Your Financial Domain",
-            subtitle: "At GGAA, you are the final check. Your work is to ensure client bills are collected and financial calculations are 100% correct before government filing:",
-            box1: "💳 1. Service Bills & Invoicing",
-            box1Desc: "Generating client invoices for our professional services, tracking cash receipts, and managing outstanding accounts.",
-            box2: "🧮 2. Ledger Verification",
-            box2Desc: "Auditing draft bookkeeping sheets compiled by our accountants. Reviewing cash machine ranges, VAT details, bank balances, and locking files.",
-            targetTitle: "SLA Commitments:",
-            target1: "Document Range Checks: Confirming receipt number boundaries strictly match physical reports.",
-            target2: "Tax Filing Calendar: Verifying and locking ledgers before the 30th of each Ethiopian month.",
-            target3: "Outstanding Dues: Checking overdue invoices every single week."
+        lab1: {
+            guideTitle: "Lab 1: COGS Inventory Audit",
+            intro: "Draft ledgers submitted by accountants sometimes contain errors in the Cost of Goods Sold (COGS). As a finance auditor, you must verify the inventory figures using the standard calculation.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. Inspect the stock summary table for Zenith PLC on the right.",
+            inst2: "2. Recompute the correct COGS: Starting Stock + Purchases - Ending Stock.",
+            inst3: "3. Input the corrected COGS value in the field below and click 'Validate COGS'.",
+            cogsLabel: "Enter Reconciled COGS (ETB):",
+            validateBtn: "Validate COGS",
+            successMsg: "🎉 Success! COGS reconciled at 280,000.00 ETB. Stock ledger mismatch resolved.",
         },
-        slide3: {
-            badge: "Part 3: Bills & Invoices",
-            title: "Creating Service Invoices",
-            subtitle: "Our system has a built-in billing manager. You can easily issue invoices for specific accounting services, keeping records organized.",
-            point1: "Simple Invoicing stages: Unissued Draft ➔ Sent (Pending Payment) ➔ Fully Settled (Paid).",
-            point2: "Payment Mapping: Every bank deposit records bank channels, dates, and transaction references."
+        lab2: {
+            guideTitle: "Lab 2: Corporate Profit Tax Engine",
+            intro: "GGAA uses the official Category A/B Ethiopian profit tax slab for corporate businesses. Profit tax is assessed at a flat 35% of Net profit minus a standard offset of 24,600 ETB.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. Review Awash Coffee's Net Profit (300,000 ETB) in the board on the right.",
+            inst2: "2. Calculate the estimated profit tax: (Net Profit * 0.35) - 24,600.",
+            inst3: "3. Input the exact tax result below and click 'Submit Tax Return'.",
+            taxLabel: "Enter Estimated Profit Tax (ETB):",
+            submitBtn: "Submit Tax Return",
+            successMsg: "🎉 Success! Corporate profit tax validated at 80,400.00 ETB. Government return matches.",
         },
-        slide4: {
-            badge: "Part 4: Sales & Cost of Goods Sold",
-            title: "Reconciling Sales & Inventory (COGS)",
-            subtitle: "In the ledger entry console, calculations update instantly as you enter values, helping you spot errors immediately.",
-            col1: "1. Sales & Receipt Logging",
-            cSales: "Cash Register Sales",
-            mSales: "Manual Receipt Sales",
-            cRange: "Cash Receipts: 10001 ➔ 10320 (319 items)",
-            mRange: "Manual Receipts: 4001 ➔ 4050 (49 items)",
-            col2: "2. Cost of Buying Stock (COGS)",
-            begStock: "Starting Stock",
-            purchases: "New Purchases",
-            endStock: "Ending Stock",
-            formulaLabel: "Computed COGS:",
-            formulaDesc: "🧮 Simple Formula: Starting Stock + New Purchases - Ending Stock = Cost of Stock Sold (COGS). Updates live!"
+        lab3: {
+            guideTitle: "Lab 3: Invoice Bank Matching",
+            intro: "When clients pay service fees, bank transfers record transaction references. You must match the deposit with the outstanding client invoice to settle their bills and unlock their next bookkeeping month.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. Look at outstanding invoice #INV-2026-081 for Nile Textile (45,000 ETB).",
+            inst2: "2. Inspect the bank deposits list on the right and select the matching payment.",
+            inst3: "3. Click 'Match & Settle Invoice' to complete the transaction.",
+            depositLabel: "Select Matching Bank Deposit:",
+            settleBtn: "Match & Settle Invoice",
+            settledBadge: "FULLY SETTLED & RECONCILED",
+            unsettledBadge: "UNPAID INVOICE",
+            successMsg: "🎉 Success! Payment matched and invoice settled. The client ledger has been unlocked.",
         },
-        slide5: {
-            badge: "Part 5: Expenses & VAT",
-            title: "Operational Expenses & VAT Audits",
-            subtitle: "Our ledgers track 17 standard operating expenses and VAT figures, making sure everything is aligned with physical tax vouchers.",
-            p1: "🏢 Expenses tracked: rent, salaries, transport, electricity, printing, bank charges, and asset depreciation.",
-            p2: "📈 VAT Logs: Sales VAT (15%), Purchase VAT (15%), and Withholding Tax details are audited to match government filings."
-        },
-        slide6: {
-            badge: "Part 6: Tax Calculator",
-            title: "The Ethiopian Profit Tax Engine",
-            subtitle: "For standard Category A/B corporate businesses, profit tax is assessed at 35% minus a standard deduction. Our system computes this automatically!",
-            formulaLabel: "Official Tax Formula:",
-            formulaCode: "Tax = (Net Profit * 0.35) - 24,600 ETB",
-            widgetTitle: "Try It Yourself: Interactive Tax Calculator",
-            widgetInstruction: "Enter mock figures below to see the government profit tax calculate live:",
-            t1: "Sales Income:",
-            t2: "Cost of Stock (COGS):",
-            t3: "Running Expenses:",
-            nibtLabel: "Take-home Earnings (Net Profit):",
-            taxLabel: "Estimated Profit Tax (35% Slab):",
-            widgetTip: "💡 Type your own numbers above to experience the dynamic tax calculation!"
-        },
-        slide7: {
-            badge: "Part 7: Bank Reconciliation",
-            title: "Multi-Bank Balances Ledger",
-            subtitle: "Most clients use multiple corporate bank accounts. We reconcile bank statements by recording unique balance movements inside the ledger.",
-            point1: "LC Margin Release: Reconciling letter-of-credit margins released during import processes.",
-            point2: "Movements: Tracking corporate loans, transfers, and correction reversals for each bank account."
-        },
-        slide8: {
-            badge: "Part 8: Security & PDF Export",
-            title: "Verifiable PDF Statements & QR Codes",
-            subtitle: "Once you lock a ledger as Verified, the system generates a signed PDF report embedded with a secure verification QR code.",
-            p1: "🔒 Locked Books: Verified records are locked automatically to prevent typos. The client can only view Verified statements in their portal.",
-            p2: "📲 Scan QR Code: Banks or tax auditors can scan the printed QR code to instantly verify its authenticity on our live secure portal."
-        },
-        slide9: {
-            badge: "Part 9: Graduation",
-            title: "Your Finance Audit Checklist",
-            subtitle: "Follow these simple operational steps every month to keep your financial ledger records 100% compliant:"
+        graduation: {
+            title: "Congratulations, Finance Auditor!",
+            subtitle: "You have completed all three bookkeeping and tax audit simulation labs.",
+            badgeLabel: "Unlocked Profile Badge:",
+            badgeTitle: "🎓 Tax Guru",
+            badgeDesc: "Passed corporate ledger and bank settlement assessments with zero variance.",
+            certTitle: "CERTIFIED FINANCE AUDITOR",
+            certSubtitle: "GGAA Systems Finance & Audit Academy",
+            certBody: "This certifies that the holder has passed the rigorous operations simulator, demonstrated proficiency in capacity scheduling, GPS errand logging, and tax ID validation.",
+            certDate: "Certified on: June 2026",
+            certNameLabel: "Change Certificate Name:",
+            homeBtn: "Return to Training Hub",
         }
     },
     am: {
-        slide1: {
-            badge: "ክፍል 3፡ የፋይናንስ እና ሂሳብ ስልጠና",
-            title: "ወርሃዊ ሂሳብ ማረጋገጥና ክፍያዎች",
-            subtitle: "እንኳን ደህና መጡ! ይህ መመሪያ ለፋይናንስ ባለሙያዎቻችን የተዘጋጀ ነው። ወርሃዊ የሂሳብ መዛግብትን እንዴት እንደሚገመግሙ፣ የመንግስት ታክስን እንደሚሰሉ፣ ክፍያዎችን እንደሚያስተዳድሩ እና ሪፖርቶችን እንደሚያትሙ ይማሩ።"
+        backBtn: "ወደ ስልጠናዎች ተመለስ",
+        headerTitle: "የፋይናንስና የሂሳብ አያያዝ ስልጠና",
+        headerSubtitle: "የሂሳብ እና የታክስ ማስመሰያ ገጽ",
+        stepNames: ["ማጠቃለያ", "ላብ 1: COGS", "ላብ 2: ትርፍ ግብር", "ላብ 3: ማስታረቅ", "ምረቃ 🎓"],
+        
+        overview: {
+            title: "እንኳን ወደ ፋይናንስ የስልጠና ክፍል በደህና መጡ!",
+            desc1: "የፋይናንስ ባለሙያዎች የሂሳብ መዛግብትን ትክክለኛነት ያረጋግጣሉ፣ የዕቃ መግዣ ወጪን (COGS) ኦዲት ያደርጋሉ፣ የንግድ ትርፍ ግብርን ያሰላሉ፣ እና የባንክ ክፍያዎችን ከክፍያ መጠየቂያዎች ጋር ያገናኛሉ።",
+            desc2: "ይህ ማስመሰያ የሂሳብ ማስታረቅ፣ የታክስ ህጎች እና የክፍያ መጠየቂያ አሰፋፈር ላይ ያለዎትን ብቃት በተግባር የሚፈትን 3 ላብራቶሪዎችን የያዘ ነው።",
+            startBtn: "የፋይናንስ ስልጠናውን ጀምር",
         },
-        slide2: {
-            badge: "ክፍል 2፡ የፋይናንስ ኃላፊነት",
-            title: "የእርስዎ የፋይናንስ ዘርፍ",
-            subtitle: "በጂጂኤኤ የፋይናንስ ቡድን የመጨረሻው የጥራት ተቆጣጣሪ ነው። የእርስዎ ስራ ደንበኞች በሰዓቱ መክፈላቸውን እና የታክስ ስሌቶች 100% ትክክል መሆናቸውን ማረጋገጥ ነው፡",
-            box1: "💳 1. የክፍያ መጠየቂያ እና ሂሳቦች",
-            box1Desc: "ለደንበኞች ለአገልግሎታችን ክፍያ መጠየቂያ ደረሰኝ (Invoices) ማዘጋጀት፣ የክፍያ ደረሰኞችን መሰብሰብ እና ያልተከፈሉ ሂሳቦችን መከታተል።",
-            box2: "🧮 2. ወርሃዊ መዛግብትን ማረጋገጥ",
-            box2Desc: "በአካውንታንቶች የተሞሉ ወርሃዊ መዛግብትን መገምገም። የሽያጭ ደረሰኞችን፣ የVAT ሪፖርቶችን፣ የባንክ ሂሳቦችን ፈትሾ ማጽደቅ።",
-            targetTitle: "የስራ መመዘኛ ግቦች (SLA):",
-            target1: "የደረሰኝ ቁጥሮች ማጣራት፡ የደረሰኝ ቁጥሮች ከእውነተኛ የሽያጭ መመዝገቢያ ማሽን ሪፖርቶች ጋር መጣጣማቸውን ማረጋገጥ።",
-            target2: "የታክስ የቀን መቁጠሪያ፡ በየኢትዮጵያ ወር እስከ 30ኛው ቀን ድረስ መዛግብትን መርምሮ መቆለፍ።",
-            target3: "ያልተከፈሉ ሂሳቦች፡ በየሳምንቱ ያልተከፈሉ የደንበኛ ሂሳቦችን መከታተል።"
+        lab1: {
+            guideTitle: "ላብ 1: የዕቃ መግዣ ወጪ (COGS) ኦዲት",
+            intro: "አካውንታንቶች የሚሞሏቸው ወርሃዊ መዛግብት አንዳንድ ጊዜ በዕቃ መግዣ ወጪ (COGS) ላይ ስህተት ሊኖራቸው ይችላል። እንደ ፋይናንስ ኦዲተር መደበኛውን ስሌት በመጠቀም ወጪውን ማረጋገጥ አለብዎት።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. በቀኝ በኩል ያለውን የ Zenith PLC የዕቃዎች ክምችት ማጠቃለያ ይመልከቱ።",
+            inst2: "2. ትክክለኛውን የዕቃ መግዣ ወጪ ያሰሉ፡ የመጀመሪያ ክምችት + አዲስ ግዢ - የመጨረሻ ክምችት።",
+            inst3: "3. ያሰሉትን ቁጥር በቅጹ ላይ ሞልተው 'የተሰላውን ወጪ አረጋግጥ' የሚለውን ይጫኑ።",
+            cogsLabel: "የተረጋገጠውን COGS ያስገቡ (ETB):",
+            validateBtn: "የተሰላውን ወጪ አረጋግጥ",
+            successMsg: "🎉 እንኳን ደስ አለዎት! የዕቃ መግዣ ወጪው 280,000.00 ብር ተብሎ በትክክል ተረጋግጧል። የሂሳብ ልዩነቱ ተፈትቷል።",
         },
-        slide3: {
-            badge: "ክፍል 3፡ የክፍያ መጠየቂያዎች",
-            title: "የክፍያ መጠየቂያ ደረሰኞች (Invoices)",
-            subtitle: "የእኛ ሲስተም ለአጠቃቀም ቀላል የሆነ የክፍያ መጠየቂያ ማስተዳደሪያ አለው። ለተለያዩ አገልግሎቶች በቀላሉ ደረሰኝ ማውጣትና ፋይሎችን ማደራጀት ይችላሉ።",
-            point1: "ቀላል የክፍያ መጠየቂያ ደረጃዎች፡ ያልተላከ ረቂቅ ➔ የተላከ (ክፍያ የሚጠበቅበት) ➔ ሙሉ በሙሉ የተከፈለ።",
-            point2: "የክፍያ ምዝገባ፡ እያንዳንዱ የባንክ ክፍያ ሲፈጸም የባንኩ ስም፣ ቀን እና የግብይት ቁጥር (Transaction Reference) በሲስተሙ ይመዘገባል።"
+        lab2: {
+            guideTitle: "ላብ 2: የንግድ ትርፍ ግብር ማስያ",
+            intro: "ጂጂኤኤ የኢትዮጵያን ይፋዊ የትርፍ ግብር ስሌት ዘዴ ይጠቀማል። የትርፍ ግብር የሚሰላው ከተጣራ ትርፍ ላይ 35% ተወስዶ የመቀነሻውን offset (24,600 ብር) በመቀነስ ነው።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. በቀኝ በኩል የ Awash Coffee የተጣራ ትርፍ (300,000 ብር) ይመልከቱ።",
+            inst2: "2. የትርፍ ግብሩን ያሰሉ፡ (የተጣራ ትርፍ * 0.35) - 24,600።",
+            inst3: "3. ያገኙትን የግብር መጠን በቅጹ ላይ ሞልተው 'ግብሩን አስገባ' የሚለውን ይጫኑ።",
+            taxLabel: "የተሰላውን የትርፍ ግብር ያስገቡ (ETB):",
+            submitBtn: "ግብሩን አስገባ",
+            successMsg: "🎉 እንኳን ደስ አለዎት! የንግድ ትርፍ ግብሩ 80,400.00 ብር ተብሎ በትክክል ተረጋግጧል። ከመንግስት ሪፖርት ጋር ይጣጣማል።",
         },
-        slide4: {
-            badge: "ክፍል 4፡ ሽያጭ እና ወጪ",
-            title: "ሽያጭ እና የዕቃ መግዣ ወጪ (COGS) ማስታረቅ",
-            subtitle: "ወርሃዊ ሂሳብ በሚሞላበት ገጽ ላይ ቁጥሮችን ሲያስገቡ ስሌቶቹ በቅጽበት ይሰራሉ፣ ይህም ስህተት ከተፈጠረ ወዲያውኑ ለማየት ይረዳል።",
-            col1: "1. የሽያጭ ደረሰኞች ምዝገባ",
-            cSales: "የማሽን ሽያጭ",
-            mSales: "የእጅ ደረሰኝ ሽያጭ",
-            cRange: "የማሽን ደረሰኞች፡ ከ10001 ➔ 10320 (319 ቁርጥ)",
-            mRange: "የእጅ ደረሰኞች፡ ከ4001 ➔ 4050 (49 ቁርጥ)",
-            col2: "2. የዕቃ መግዣ ወጪ (COGS)",
-            begStock: "የመጀመሪያ ክምችት",
-            purchases: "አዲስ ግዢ",
-            endStock: "የመጨረሻ ክምችት",
-            formulaLabel: "የዕቃ መግዣ ወጪ (COGS):",
-            formulaDesc: "🧮 ቀላል ስሌት፡ የመጀመሪያ ክምችት + አዲስ ግዢ - የመጨረሻ ክምችት = የዕቃ መግዣ ወጪ (COGS)። በራሱ ይሰላል!"
+        lab3: {
+            guideTitle: "ላብ 3: ክፍያዎችን ከደረሰኝ ጋር ማስታረቅ",
+            intro: "ደንበኞች ክፍያ ሲፈጽሙ በባንክ በኩል የማስተላለፊያ ቁጥር ይላካል። የደንበኛውን ቀጣይ ወር ሂሳብ ለመክፈት ክፍያውን ካልተከፈለ የክፍያ መጠየቂያ (Invoice) ጋር ማያያዝ አለብዎት።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. የ Nile Textile Corp ያልተከፈለ ክፍያ #INV-2026-081 (45,000 ብር) ይመልከቱ።",
+            inst2: "2. በቀኝ በኩል ከተዘረዘሩት የባንክ ገቢዎች ውስጥ ትክክለኛውን ክፍያ ይምረጡ።",
+            inst3: "3. 'ክፍያውን አያይዝና አረጋግጥ' የሚለውን በመጫን ሂሳቡን ይዝጉ።",
+            depositLabel: "ትክክለኛውን የባንክ ክፍያ ይምረጡ:",
+            settleBtn: "ክፍያውን አያይዝና አረጋግጥ",
+            settledBadge: "ክፍያው ተፈጽሞ ሂሳቡ ተዘግቷል",
+            unsettledBadge: "ያልተከፈለ ክፍያ",
+            successMsg: "🎉 እንኳን ደስ አለዎት! ክፍያው ከደረሰኙ ጋር ተገናኝቶ ሂሳቡ ተዘግቷል። የደንበኛው ሂሳብ ተከፍቷል።",
         },
-        slide5: {
-            badge: "ክፍል 5፡ ወጪዎች እና ተጨማሪ እሴት ታክስ (VAT)",
-            title: "የስራ ማስኬጃ ወጪዎች እና የVAT ምዝገባ",
-            subtitle: "ወርሃዊ ሂሳቡ 17 መደበኛ የስራ ማስኬጃ ወጪዎችን እና የVAT መረጃዎችን በጥንቃቄ እንዲመዘገቡ ያደርጋል::",
-            p1: "🏢 የሚመዘገቡ ወጪዎች፡ የቤት ኪራይ፣ ደመወዝ፣ የትራንስፖርት፣ የኤሌክትሪክ፣ የባንክ አገልግሎት ክፍያ እና የንብረት እርጅና ወጪዎች።",
-            p2: "📈 የVAT ምዝገባ፡ የሽያጭ VAT (15%)፣ የግዢ VAT (15%) እና ዊዝሆልዲንግ ታክስ ከመንግስት ታክስ ሪፖርት ጋር እንዲጣጣም ይደረጋል።"
-        },
-        slide6: {
-            badge: "ክፍል 6፡ የግብር ስሌት",
-            title: "የኢትዮጵያ የንግድ ትርፍ ግብር ስሌት",
-            subtitle: "ለደረጃ ሀ/ለ ንግድ ድርጅቶች፣ የትርፍ ግብር የሚሰላው ከተጣራ ትርፍ ላይ 35% ተወስዶ የመቀነሻ ቀመርን በመጠቀም ነው። ይህንን ሲስተሙ በራሱ ያሰላል!",
-            formulaLabel: "ይፋዊ የትርፍ ግብር ቀመር፡",
-            formulaCode: "ትርፍ ግብር = (የተጣራ ትርፍ * 0.35) - 24,600 ብር",
-            widgetTitle: "እራስዎ ይሞክሩት፡ የግብር ማስያ መተግበሪያ",
-            widgetInstruction: "የታክስ ስሌቱ እንዴት እንደሚቀያየር ከታች ያሉትን ቁጥሮች በመቀየር ይሞክሩ፡",
-            t1: "ጠቅላላ የሽያጭ ገቢ፡",
-            t2: "የዕቃ መግዣ ወጪ (COGS)፡",
-            t3: "ጠቅላላ ወጪዎች፡",
-            nibtLabel: "የተጣራ ትርፍ (Net Profit)፡",
-            taxLabel: "የንግድ ትርፍ ግብር (35%)፡",
-            widgetTip: "💡 የግብር ስሌቱ ሲቀያየር ለመመልከት ከላይ ያሉትን ቁጥሮች ይቀይሩ!"
-        },
-        slide7: {
-            badge: "ክፍል 7፡ ባንክ ማስታረቅ",
-            title: "የተለያዩ የባንክ ሂሳቦችን ማስታረቅ",
-            subtitle: "አብዛኛዎቹ ደንበኞች ከአንድ በላይ የባንክ አካውንት ይጠቀማሉ። ወርሃዊ ሂሳቡን ስናስታርቅ የእያንዳንዱን ባንክ እንቅስቃሴ እንመዘግባለን።",
-            point1: "LC ማርጅን መለቀቅ፡ በገቢ ንግድ (Import) ወቅት የተለቀቁ የLC ማርጅን ሂሳቦችን ማስታረቅ።",
-            point2: "እንቅስቃሴዎች፡ ብድሮች፣ የባንክ ዝውውሮች እና ማስተካከያዎችን ለእያንዳንዱ የባንክ አካውንት መመዝገብ።"
-        },
-        slide8: {
-            badge: "ክፍል 8፡ ደህንነት እና ፒዲኤፍ ሪፖርት",
-            title: "የታተሙ ፒዲኤፍ ሪፖርቶች እና የQR ደህንነት",
-            subtitle: "አንድ ወርሃዊ ሂሳብ በማናጀር ከጸደቀ በኋላ፣ ሲስተሙ በQR ኮድ የተጠበቀ ይፋዊ የፒዲኤፍ ሪፖርት ያመነጫል።",
-            p1: "🔒 መቆለፊያ፡ ስህተቶችን ለመከላከል የጸደቁ ሂሳቦች በራሳቸው ይቆለፋሉ። ደንበኞች በፖርታላቸው ማየት የሚችሉት የጸደቁትን መዛግብቶች ብቻ ነው።",
-            p2: "📲 QR ኮድ መፈተሻ፡ ባንኮች ወይም የታክስ ኦዲተሮች በሪፖርቱ ላይ ያለውን QR ኮድ በመቃኘት ትክክለኛነቱን በጂጂኤኤ ድረ-ገጽ ላይ ማረጋገጥ ይችላሉ።"
-        },
-        slide9: {
-            badge: "ክፍል 9፡ ማጠቃለያ",
-            title: "የፋይናንስ ኦዲት እለታዊ የስራ ዝርዝር",
-            subtitle: "ወርሃዊ ሂሳቦች 100% ትክክል እና ደህንነታቸው የተጠበቀ እንዲሆን በየወሩ ይህንን ቀላል የስራ ዝርዝር ይከተሉ፡"
+        graduation: {
+            title: "እንኳን ደስ አለዎት፣ የፋይናንስ ኦዲተር!",
+            subtitle: "ሁሉንም 3 የፋይናንስና የታክስ ኦዲት ላብራቶሪዎችን በተሳካ ሁኔታ አጠናቀዋል።",
+            badgeLabel: "ያገኙት የክብር ባጅ:",
+            badgeTitle: "🎓 የታክስ ሊቅ",
+            badgeDesc: "የንግድ ድርጅቶች ሂሳብ እና የባንክ ክፍያዎችን ያለ ምንም ልዩነት ያረጋገጠ።",
+            certTitle: "የፋይናንስ ኦዲተር ሰርተፊኬት",
+            certSubtitle: "ጂጂኤኤ ሲስተምስ የፋይናንስ አካዳሚ",
+            certBody: "ይህ ሰርተፊኬት ባለቤቱ የፋይናንስ ኦዲተር ማስመሰያ ፈተናዎችን ማለፉን፣ በዕቃ መግዣ ወጪ (COGS)፣ በትርፍ ግብር ስሌት እና በባንክ ክፍያዎች ማስታረቅ ላይ ሙሉ ብቃት ማሳየቱን ያረጋግጣል።",
+            certDate: "የተሰጠበት ቀን: ሰኔ 2026",
+            certNameLabel: "በሰርተፊኬቱ ላይ ያለውን ስም ይቀይሩ:",
+            homeBtn: "ወደ ስልጠናዎች ማእከል ተመለስ",
         }
     }
 };
 </script>
 
 <template>
-    <Head :title="`${slides[locale].slide1.title} - GGAA Systems`" />
+    <Head :title="`${content[locale].headerTitle} - GGAA Systems`" />
 
     <div class="min-h-screen font-sans flex flex-col justify-between overflow-x-hidden transition-colors duration-300 selection:bg-emerald-600 selection:text-white"
          :class="isDark ? 'bg-[#050b0a] text-slate-100' : 'bg-slate-50 text-slate-800'"
     >
-        
+        <!-- Background Blur Particles -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] blur-[150px] rounded-full transition-opacity duration-300"
+                 :class="isDark ? 'bg-emerald-600/10 opacity-100' : 'bg-emerald-500/5 opacity-40'"></div>
+            <div class="absolute bottom-[10%] right-[10%] w-[35%] h-[35%] blur-[150px] rounded-full transition-opacity duration-300"
+                 :class="isDark ? 'bg-teal-600/10 opacity-100' : 'bg-teal-500/5 opacity-40'"></div>
+        </div>
+
         <!-- Top Navigation Bar -->
         <header class="w-full py-4 px-6 lg:px-12 flex justify-between items-center border-b backdrop-blur-md sticky top-0 z-50 transition-colors"
-                :class="isDark ? 'border-slate-800 bg-[#050b0a]/80' : 'border-slate-200 bg-white/80'"
+                :class="isDark ? 'border-slate-850 bg-[#050b0a]/80' : 'border-slate-200 bg-white/80'"
         >
             <Link href="/training" class="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-emerald-500 transition-colors group">
                 <ArrowLeftIcon class="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-                {{ locale === 'en' ? 'Back to Tracks' : 'ወደ ስልጠናዎች ተመለስ' }}
+                {{ content[locale].backBtn }}
             </Link>
             
             <div class="flex items-center gap-3">
@@ -264,8 +259,12 @@ const slides = {
                     F
                 </div>
                 <div>
-                    <span class="text-base font-black tracking-wider uppercase font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">GGAA <span class="text-emerald-500">Systems</span></span>
-                    <span class="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">{{ locale === 'en' ? 'Finance & Bookkeeping Course' : 'የፋይናንስና የሂሳብ አያያዝ ስልጠና' }}</span>
+                    <span class="text-base font-black tracking-wider uppercase font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">
+                        GGAA <span class="text-emerald-500">Systems</span>
+                    </span>
+                    <span class="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                        {{ content[locale].headerSubtitle }}
+                    </span>
                 </div>
             </div>
             
@@ -288,482 +287,406 @@ const slides = {
             </div>
         </header>
 
-        <!-- Slides Container (Smoother, larger fonts, conversational) -->
-        <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-8 flex items-center justify-center relative">
-            <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] blur-[150px] rounded-full pointer-events-none transition-opacity duration-300"
-                 :class="[isDark ? 'bg-emerald-500/10 opacity-100' : 'bg-emerald-500/5 opacity-40']"></div>
-            <div class="absolute bottom-[10%] right-[10%] w-[35%] h-[35%] blur-[150px] rounded-full pointer-events-none transition-opacity duration-300"
-                 :class="[isDark ? 'bg-teal-500/10 opacity-100' : 'bg-teal-500/5 opacity-40']"></div>
+        <!-- Main Body: Course Curriculum Steps -->
+        <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-6 relative z-10 flex flex-col justify-center">
+            
+            <!-- Step Navigation Tabs -->
+            <div class="flex justify-center flex-wrap gap-2 mb-8 bg-slate-950/20 backdrop-blur-md p-1.5 rounded-2xl border border-slate-500/10 max-w-2xl mx-auto w-full">
+                <button v-for="(stepName, index) in content[locale].stepNames" :key="index"
+                        @click="index <= 3 || lab3Passed ? currentStep = index : null"
+                        class="px-4 py-2 text-xs font-bold font-outfit rounded-xl transition-all flex items-center gap-1.5"
+                        :class="[
+                            currentStep === index 
+                                ? 'bg-emerald-600 text-white shadow-md' 
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-550/5',
+                            (index > 0 && index <= 3 && !lab3Passed && index > currentStep + 1) ? 'opacity-40 cursor-not-allowed' : ''
+                        ]"
+                >
+                    <span class="h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black border"
+                          :class="currentStep >= index ? 'border-white text-white' : 'border-slate-500 text-slate-500'"
+                    >
+                        {{ index + 1 }}
+                    </span>
+                    {{ stepName }}
+                </button>
+            </div>
 
-            <!-- SLIDE 1: WELCOME & TITLE -->
-            <div v-if="currentSlide === 1" class="w-full flex flex-col items-center justify-center text-center py-12 relative z-10 space-y-6 max-w-3xl animate-fade-in">
-                <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-black uppercase tracking-widest border border-emerald-500/20">
-                    <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    {{ slides[locale].slide1.badge }}
+            <!-- STEP 0: OVERVIEW -->
+            <div v-if="currentStep === 0" class="max-w-3xl mx-auto text-center space-y-6 py-12 animate-fade-in">
+                <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-450 text-xs font-black uppercase tracking-widest border border-emerald-500/20">
+                    <AcademicCapIcon class="h-5 w-5" />
+                    {{ locale === 'en' ? 'Track 3: Bookkeeping & Financial Audit Operations' : 'ክፍል 3፡ የፋይናንስና የሂሳብ አያያዝ ማረጋገጫ ስልጠና' }}
                 </span>
                 
-                <h1 class="text-5xl lg:text-7xl font-black font-outfit tracking-tighter leading-tight"
-                    :class="isDark ? 'text-white' : 'text-slate-955'"
+                <h1 class="text-4xl sm:text-6xl font-black font-outfit tracking-tighter leading-tight"
+                    :class="isDark ? 'text-white' : 'text-slate-950'"
                 >
-                    {{ slides[locale].slide1.title }}
+                    {{ content[locale].overview.title }}
                 </h1>
                 
-                <p class="text-xl md:text-2xl font-medium max-w-2xl mx-auto leading-relaxed"
-                   :class="isDark ? 'text-slate-300' : 'text-slate-650'"
-                >
-                    {{ slides[locale].slide1.subtitle }}
+                <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
+                    {{ content[locale].overview.desc1 }}
+                </p>
+                <p class="text-base leading-relaxed font-medium" :class="isDark ? 'text-slate-450' : 'text-slate-550'">
+                    {{ content[locale].overview.desc2 }}
                 </p>
 
-                <div class="pt-8 flex justify-center gap-4">
-                    <button @click="nextSlide" class="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-xl shadow-emerald-600/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm uppercase tracking-wider font-outfit">
-                        {{ locale === 'en' ? 'Get Started' : 'ጀምር' }}
+                <div class="pt-6">
+                    <button @click="currentStep = 1" class="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-xl shadow-emerald-600/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm uppercase tracking-wider font-outfit mx-auto">
+                        {{ content[locale].overview.startBtn }}
                         <ChevronRightIcon class="h-4 w-4" />
                     </button>
                 </div>
             </div>
 
-            <!-- SLIDE 2: FINANCIAL SCOPE OVERVIEW -->
-            <div v-if="currentSlide === 2" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide2.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide2.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-600'">
-                        {{ slides[locale].slide2.subtitle }}
-                    </p>
-                    
-                    <div class="space-y-4 pt-2">
-                        <div class="flex gap-4 p-4 rounded-3xl border transition-colors"
-                             :class="isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'"
-                        >
-                            <div class="h-10 w-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold shrink-0">1</div>
-                            <div>
-                                <h4 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide2.box1 }}</h4>
-                                <p class="text-sm mt-1" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide2.box1Desc }}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="flex gap-4 p-4 rounded-3xl border transition-colors"
-                             :class="isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'"
-                        >
-                            <div class="h-10 w-10 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 font-bold shrink-0">2</div>
-                            <div>
-                                <h4 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide2.box2 }}</h4>
-                                <p class="text-sm mt-1" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide2.box2Desc }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <!-- SPLIT SCREEN LAYOUT FOR LABS (1, 2, 3) -->
+            <div v-if="currentStep > 0 && currentStep < 4" class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch py-2 min-h-[500px]">
                 
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="shadow-2xl rounded-[32px] p-8 w-full max-w-md border space-y-4 font-medium"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-250 text-slate-700 shadow-lg'"
-                    >
-                        <h3 class="text-lg font-black uppercase tracking-wider pb-2 border-b"
-                            :class="isDark ? 'text-slate-400 border-slate-800' : 'text-slate-900 border-slate-200'"
-                        >
-                            {{ slides[locale].slide2.targetTitle }}
-                        </h3>
-                        <ul class="space-y-3.5 text-sm">
-                            <li class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                                <span>{{ slides[locale].slide2.target1 }}</span>
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                                <span>{{ slides[locale].slide2.target2 }}</span>
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                                <span>{{ slides[locale].slide2.target3 }}</span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 3: BILLING & INVOICING -->
-            <div v-if="currentSlide === 3" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide3.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide3.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide3.subtitle }}
-                    </p>
-
-                    <div class="space-y-4 text-sm" :class="isDark ? 'text-slate-300' : 'text-slate-700'">
-                        <p class="font-medium">💼 {{ slides[locale].slide3.point1 }}</p>
-                        <p class="font-medium">🏦 {{ slides[locale].slide3.point2 }}</p>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[32px] p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-250'"
-                    >
-                        <div class="flex justify-between items-center pb-2 border-b" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
-                            <span class="text-[9px] bg-emerald-500/10 text-emerald-400 font-bold px-2 py-0.5 rounded uppercase">{{ locale === 'en' ? 'Service Invoice' : 'የክፍያ መጠየቂያ' }}</span>
-                            <span class="text-xs" :class="isDark ? 'text-slate-450' : 'text-slate-500'">#INV-2026-081</span>
-                        </div>
-                        
-                        <div class="space-y-2.5 text-xs">
-                            <div class="flex justify-between">
-                                <span class="text-slate-500 uppercase">{{ locale === 'en' ? 'Client' : 'ደንበኛ' }}:</span>
-                                <span class="font-bold text-sm" :class="isDark ? 'text-white' : 'text-slate-900'">Nile Textile Corp</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-500 uppercase">{{ locale === 'en' ? 'Service' : 'አገልግሎት' }}:</span>
-                                <span class="font-bold text-sm" :class="isDark ? 'text-white' : 'text-slate-900'">Annual Auditing</span>
-                            </div>
-                            <div class="flex justify-between border-t pt-2 font-bold" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
-                                <span class="text-slate-500">{{ locale === 'en' ? 'Grand Total' : 'ጠቅላላ ሂሳብ' }}:</span>
-                                <span class="text-emerald-500 text-base">45,000.00 ETB</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 4: RECONCILIATIONS: SALES & COGS -->
-            <div v-if="currentSlide === 4" class="w-full flex flex-col py-2 relative z-10">
-                <div class="text-center max-w-2xl mx-auto mb-6 space-y-1">
-                    <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide4.badge }}</span>
-                    <h2 class="text-3xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide4.title }}
-                    </h2>
-                    <p class="text-base font-medium" :class="isDark ? 'text-slate-450' : 'text-slate-650'">
-                        {{ slides[locale].slide4.subtitle }}
-                    </p>
-                </div>
-
-                <div class="w-full rounded-3xl border overflow-hidden shadow-2xl p-6 space-y-4"
-                     :class="isDark ? 'bg-[#081013] border-slate-800' : 'bg-white border-slate-200'"
+                <!-- LEFT SIDE: LAB GUIDE & STATUS -->
+                <div class="flex flex-col justify-between space-y-6 rounded-[32px] p-6 lg:p-8 border backdrop-blur-md"
+                     :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-lg'"
                 >
-                    <div class="flex flex-wrap justify-between items-center gap-3 pb-3 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
-                        <span class="text-xs font-bold" :class="isDark ? 'text-slate-200' : 'text-slate-800'">Nile Textile Corp (Meskeram 2026)</span>
-                        <span class="px-2.5 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-xs font-black">DRAFT</span>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Box 1 -->
-                        <div class="p-4 rounded-2xl border space-y-3" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-250 shadow-sm'">
-                            <h4 class="text-sm font-black text-emerald-500 uppercase border-b pb-1" :class="isDark ? 'border-slate-800' : 'border-slate-200'">{{ slides[locale].slide4.col1 }}</h4>
-                            <div class="grid grid-cols-2 gap-3 text-xs">
-                                <div>
-                                    <span class="text-slate-500 block uppercase">{{ slides[locale].slide4.cSales }}</span>
-                                    <span class="font-black text-base" :class="isDark ? 'text-white' : 'text-slate-900'">240,500.00 ETB</span>
-                                </div>
-                                <div>
-                                    <span class="text-slate-500 block uppercase">{{ slides[locale].slide4.mSales }}</span>
-                                    <span class="font-black text-base" :class="isDark ? 'text-white' : 'text-slate-900'">62,000.00 ETB</span>
-                                </div>
-                            </div>
-                            <p class="text-xs pt-1.5" :class="isDark ? 'text-slate-400' : 'text-slate-500'">{{ slides[locale].slide4.cRange }}</p>
-                        </div>
-
-                        <!-- Box 2 -->
-                        <div class="p-4 rounded-2xl border space-y-3" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-250 shadow-sm'">
-                            <h4 class="text-sm font-black text-emerald-500 uppercase border-b pb-1" :class="isDark ? 'border-slate-800' : 'border-slate-200'">{{ slides[locale].slide4.col2 }}</h4>
-                            <div class="grid grid-cols-3 gap-2 text-xs">
-                                <div>
-                                    <span class="text-slate-500 block uppercase">{{ slides[locale].slide4.begStock }}</span>
-                                    <span class="font-black" :class="isDark ? 'text-white' : 'text-slate-800'">120,000.00</span>
-                                </div>
-                                <div>
-                                    <span class="text-slate-500 block uppercase">{{ slides[locale].slide4.purchases }}</span>
-                                    <span class="font-black" :class="isDark ? 'text-white' : 'text-slate-800'">90,000.00</span>
-                                </div>
-                                <div>
-                                    <span class="text-slate-500 block uppercase">{{ slides[locale].slide4.endStock }}</span>
-                                    <span class="font-black" :class="isDark ? 'text-white' : 'text-slate-800'">85,000.00</span>
-                                </div>
-                            </div>
-                            <div class="flex justify-between text-xs pt-2 border-t" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
-                                <span class="text-slate-500 font-bold uppercase">{{ slides[locale].slide4.formulaLabel }}</span>
-                                <span class="font-black text-emerald-500">125,000.00 ETB</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-sm text-emerald-500 font-bold">
-                        {{ slides[locale].slide4.formulaDesc }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 5: EXPENSES & VAT -->
-            <div v-if="currentSlide === 5" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide5.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide5.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide5.subtitle }}
-                    </p>
-
                     <div class="space-y-4">
-                        <div class="flex gap-4 p-4 rounded-2xl" :class="isDark ? 'bg-slate-900/40 border border-slate-800' : 'bg-white border shadow-sm'">
-                            <span class="text-2xl shrink-0">🏢</span>
-                            <div>
-                                <h5 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide5.p1 }}</h5>
-                            </div>
-                        </div>
-                        
-                        <div class="flex gap-4 p-4 rounded-2xl" :class="isDark ? 'bg-slate-900/40 border border-slate-800' : 'bg-white border shadow-sm'">
-                            <span class="text-2xl shrink-0">📈</span>
-                            <div>
-                                <h5 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide5.p2 }}</h5>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[32px] p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-250'"
-                    >
-                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">{{ locale === 'en' ? 'VAT Auditing Sample' : 'የVAT ማጠቃለያ ማሳያ' }}</h4>
-                        
-                        <div class="space-y-2 text-xs">
-                            <div class="flex justify-between">
-                                <span>Sales VAT (15%):</span>
-                                <span class="font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">36,075.00 ETB</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Purchase VAT (15%):</span>
-                                <span class="font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">13,500.00 ETB</span>
-                            </div>
-                            <div class="flex justify-between border-t pt-2" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
-                                <span class="font-bold uppercase text-emerald-500">Net VAT Obligation:</span>
-                                <span class="font-black text-emerald-500 text-sm">22,575.00 ETB</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 6: ETHIOPIAN TAX COMPUTATION (Bilingual live tax calculator!) -->
-            <div v-if="currentSlide === 6" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide6.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide6.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide6.subtitle }}
-                    </p>
-
-                    <div class="p-5 rounded-2xl border text-sm space-y-2 transition-all"
-                         :class="isDark ? 'bg-emerald-950/20 border-emerald-950/40 text-emerald-400' : 'bg-emerald-50 border-emerald-100 text-emerald-850'"
-                    >
-                        <h4 class="font-black uppercase text-xs tracking-wider">{{ slides[locale].slide6.formulaLabel }}</h4>
-                        <p class="font-mono text-sm">{{ slides[locale].slide6.formulaCode }}</p>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <!-- Interactive Tax Calculator Board -->
-                    <div class="w-full max-w-sm rounded-[36px] p-6 border space-y-5 shadow-2xl transition-all"
-                         :class="isDark ? 'bg-[#0a1412] border-slate-800' : 'bg-white border-slate-250'"
-                    >
-                        <h4 class="text-sm font-black uppercase text-center" :class="isDark ? 'text-slate-300' : 'text-slate-950'">
-                            {{ slides[locale].slide6.widgetTitle }}
-                        </h4>
-                        <p class="text-[11px] text-slate-500 text-center">{{ slides[locale].slide6.widgetInstruction }}</p>
-                        
-                        <div class="space-y-3.5 text-xs font-medium">
-                            <div class="flex items-center justify-between">
-                                <span :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide6.t1 }}</span>
-                                <input type="number" v-model.number="mockSales" class="w-28 bg-slate-500/10 border px-3 py-1.5 rounded-xl text-right font-black outline-none transition-all"
-                                       :class="isDark ? 'border-slate-800 text-white focus:border-emerald-500' : 'border-slate-250 text-slate-900 focus:border-emerald-500'"
-                                >
-                            </div>
-                            
-                            <div class="flex items-center justify-between">
-                                <span :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide6.t2 }}</span>
-                                <input type="number" v-model.number="mockCogs" class="w-28 bg-slate-500/10 border px-3 py-1.5 rounded-xl text-right font-black outline-none transition-all"
-                                       :class="isDark ? 'border-slate-800 text-white focus:border-emerald-500' : 'border-slate-250 text-slate-900 focus:border-emerald-500'"
-                                >
-                            </div>
-
-                            <div class="flex items-center justify-between">
-                                <span :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide6.t3 }}</span>
-                                <input type="number" v-model.number="mockExpenses" class="w-28 bg-slate-500/10 border px-3 py-1.5 rounded-xl text-right font-black outline-none transition-all"
-                                       :class="isDark ? 'border-slate-800 text-white focus:border-emerald-500' : 'border-slate-250 text-slate-900 focus:border-emerald-500'"
-                                >
-                            </div>
-
-                            <div class="flex justify-between border-t pt-3" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
-                                <span :class="isDark ? 'text-slate-300' : 'text-slate-700'">{{ slides[locale].slide6.nibtLabel }}</span>
-                                <span class="font-black text-sm text-emerald-500">{{ fmt(computedNetProfit) }} ETB</span>
-                            </div>
-
-                            <div class="flex justify-between border-t border-dashed pt-3" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
-                                <span class="font-bold" :class="isDark ? 'text-slate-200' : 'text-slate-800'">{{ slides[locale].slide6.taxLabel }}</span>
-                                <span class="font-black text-base text-yellow-500">{{ fmt(computedProfitTax) }} ETB</span>
-                            </div>
-                        </div>
-
-                        <p class="text-xs text-center text-slate-500 font-bold">{{ slides[locale].slide6.widgetTip }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 7: MULTI-BANK BALANCES LEDGER -->
-            <div v-if="currentSlide === 7" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide7.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide7.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide7.subtitle }}
-                    </p>
-
-                    <div class="grid grid-cols-2 gap-4 text-xs font-semibold">
-                        <div class="p-3 border rounded-2xl" :class="isDark ? 'bg-slate-900 border-slate-850' : 'bg-white border-slate-200 shadow-sm'">
-                            <p class="text-slate-500 uppercase block text-[9px] tracking-wider mb-1">LC Margin</p>
-                            <p :class="isDark ? 'text-slate-300' : 'text-slate-700'">{{ slides[locale].slide7.point1 }}</p>
-                        </div>
-                        <div class="p-3 border rounded-2xl" :class="isDark ? 'bg-slate-900 border-slate-850' : 'bg-white border-slate-200 shadow-sm'">
-                            <p class="text-slate-500 uppercase block text-[9px] tracking-wider mb-1">Loan & Transfers</p>
-                            <p :class="isDark ? 'text-slate-300' : 'text-slate-700'">{{ slides[locale].slide7.point2 }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 space-y-4">
-                    <div class="rounded-3xl p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'"
-                    >
-                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">{{ locale === 'en' ? 'Linked Accounts' : 'የተያያዙ የባንክ አካውንቶች' }}</h4>
-                        
-                        <div class="p-3 border rounded-2xl" :class="isDark ? 'bg-slate-900 border-slate-850 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'">
-                            <div class="flex justify-between font-bold text-xs">
-                                <span :class="isDark ? 'text-slate-200' : 'text-slate-900'">Commercial Bank (CBE)</span>
-                                <span :class="isDark ? 'text-white' : 'text-slate-950'">410,500.00 ETB</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 8: REPORT VERIFICATIONS & PDF VAULT EXPORT -->
-            <div v-if="currentSlide === 8" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide8.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide8.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide8.subtitle }}
-                    </p>
-
-                    <div class="space-y-4 text-sm" :class="isDark ? 'text-slate-300' : 'text-slate-700'">
-                        <p class="font-medium">{{ slides[locale].slide8.p1 }}</p>
-                        <p class="font-medium">{{ slides[locale].slide8.p2 }}</p>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm bg-white text-slate-900 rounded-[32px] p-6 shadow-2xl space-y-4 border-t-8 border-t-emerald-600">
-                        <div class="flex justify-between items-start border-b pb-3">
-                            <div>
-                                <span class="text-[8px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black">OFFICIAL AUDIT SHEET</span>
-                                <h4 class="text-xs font-black font-outfit uppercase mt-1">Gedewon Gebre Accountant</h4>
-                            </div>
-                            <div class="w-12 h-12 bg-slate-200 border flex items-center justify-center text-[9px] font-bold">
-                                [ QR ]
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-2 text-[10px] leading-snug">
-                            <div class="flex justify-between">
-                                <span class="text-slate-500">Client TIN:</span>
-                                <span class="font-bold">0048291039</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-500">Month / Year:</span>
-                                <span class="font-bold">Meskeram 2026</span>
-                            </div>
-                            <div class="flex justify-between border-t pt-2 font-bold text-slate-800">
-                                <span>Computed Tax Obligation:</span>
-                                <span class="text-emerald-700">26,167.50 ETB</span>
-                            </div>
-                        </div>
-                        
-                        <p class="text-[8px] text-center text-slate-400 font-bold border-t pt-2 uppercase">Verified Secure Document ➔ Scan QR to Reconcile</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 9: FINANCE CHECKLIST & NEXT STEPS -->
-            <div v-if="currentSlide === 9" class="w-full flex flex-col items-center justify-center py-6 text-center relative z-10 space-y-4 max-w-2xl animate-fade-in">
-                <span class="text-xs font-black tracking-widest text-emerald-400 uppercase">{{ slides[locale].slide9.badge }}</span>
-                <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-955'">
-                    {{ slides[locale].slide9.title }}
-                </h2>
-                <p class="text-lg font-medium" :class="isDark ? 'text-slate-400' : 'text-slate-650'">
-                    {{ slides[locale].slide9.subtitle }}
-                </p>
-                
-                <div class="p-6 rounded-[32px] border text-left w-full max-w-lg mx-auto space-y-3 text-sm"
-                     :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-350' : 'bg-white border-slate-250 text-slate-700 shadow-md'"
-                >
-                    <div v-for="item in checklistItems" :key="item.id" 
-                         @click="toggleCheck(item)"
-                         class="flex items-start gap-3 cursor-pointer select-none py-2 rounded-xl hover:bg-slate-500/10 px-3 transition-colors"
-                    >
-                        <input type="checkbox" :checked="item.checked" class="accent-emerald-650 h-5 w-5 shrink-0 rounded mt-0.5 cursor-pointer">
-                        <span :class="{'line-through text-slate-500': item.checked}">
-                            {{ locale === 'en' ? item.text_en : item.text_am }}
+                        <span class="text-xs font-black uppercase text-emerald-500 tracking-widest block font-outfit">
+                            {{ locale === 'en' ? `Lab Exercise ${currentStep} of 3` : `ተግባራዊ ልምምድ ${currentStep} ከ 3` }}
                         </span>
+                        
+                        <h2 class="text-2xl lg:text-3xl font-black font-outfit tracking-tight"
+                            :class="isDark ? 'text-white' : 'text-slate-900'"
+                        >
+                            {{ content[locale][`lab${currentStep}`].guideTitle }}
+                        </h2>
+                        
+                        <p class="text-sm font-medium leading-relaxed" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
+                            {{ content[locale][`lab${currentStep}`].intro }}
+                        </p>
+                        
+                        <!-- Objective panel -->
+                        <div class="p-5 rounded-2xl space-y-2.5" :class="isDark ? 'bg-slate-950/40 border border-slate-850' : 'bg-slate-50 border border-slate-200'">
+                            <h4 class="text-xs font-black uppercase tracking-wider" :class="isDark ? 'text-slate-400' : 'text-slate-700'">
+                                {{ content[locale][`lab${currentStep}`].instructionTitle }}
+                            </h4>
+                            <ul class="space-y-2 text-xs font-semibold leading-relaxed" :class="isDark ? 'text-slate-400' : 'text-slate-600'">
+                                <li>{{ content[locale][`lab${currentStep}`].inst1 }}</li>
+                                <li>{{ content[locale][`lab${currentStep}`].inst2 }}</li>
+                                <li>{{ content[locale][`lab${currentStep}`].inst3 }}</li>
+                            </ul>
+                        </div>
+
+                        <!-- LAB 1 COGS FORM -->
+                        <div v-if="currentStep === 1" class="space-y-2.5 pt-2">
+                            <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].lab1.cogsLabel }}</label>
+                            <div class="flex gap-2">
+                                <input type="number" v-model.number="inputCogs" placeholder="e.g. 280000" 
+                                       class="flex-1 bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold font-mono text-sm outline-none transition-all"
+                                       :class="isDark ? 'border-slate-800 text-white focus:border-emerald-500' : 'border-slate-250 text-slate-900 focus:border-emerald-500'"
+                                       :disabled="lab1Passed"
+                                >
+                                <button v-if="!lab1Passed" @click="validateLab1" 
+                                        class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
+                                >
+                                    {{ content[locale].lab1.validateBtn }}
+                                </button>
+                            </div>
+                            <p v-if="lab1Error" class="text-xs font-bold text-rose-500">{{ lab1Error }}</p>
+                        </div>
+
+                        <!-- LAB 2 TAX SLAB FORM -->
+                        <div v-if="currentStep === 2" class="space-y-2.5 pt-2">
+                            <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].lab2.taxLabel }}</label>
+                            <div class="flex gap-2">
+                                <input type="number" v-model.number="inputTax" placeholder="e.g. 80400" 
+                                       class="flex-1 bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold font-mono text-sm outline-none transition-all"
+                                       :class="isDark ? 'border-slate-800 text-white focus:border-emerald-500' : 'border-slate-250 text-slate-900 focus:border-emerald-500'"
+                                       :disabled="lab2Passed"
+                                >
+                                <button v-if="!lab2Passed" @click="validateLab2" 
+                                        class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
+                                >
+                                    {{ content[locale].lab2.submitBtn }}
+                                </button>
+                            </div>
+                            <p v-if="lab2Error" class="text-xs font-bold text-rose-500">{{ lab2Error }}</p>
+                        </div>
+
+                    </div>
+
+                    <!-- SUCCESS DIALOG & PROGRESS BUTTON -->
+                    <div class="pt-4 border-t" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                        <div v-if="(currentStep === 1 && lab1Passed) || (currentStep === 2 && lab2Passed) || (currentStep === 3 && lab3Passed)" 
+                             class="p-4 mb-4 rounded-2xl border text-xs font-bold text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+                        >
+                            {{ content[locale][`lab${currentStep}`].successMsg }}
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <button @click="currentStep--" 
+                                    class="px-4 py-2.5 rounded-xl border text-xs font-bold uppercase transition-all"
+                                    :class="isDark ? 'border-slate-800 text-slate-400 hover:bg-slate-900' : 'border-slate-250 text-slate-600 hover:bg-slate-100'"
+                            >
+                                {{ locale === 'en' ? 'Back' : 'ተመለስ' }}
+                            </button>
+                            
+                            <button @click="currentStep++" 
+                                    :disabled="!(currentStep === 1 ? lab1Passed : currentStep === 2 ? lab2Passed : lab3Passed)"
+                                    class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
+                            >
+                                {{ locale === 'en' ? 'Next Lab' : 'ቀጣይ ላብ' }}
+                                <ChevronRightIcon class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="pt-6">
-                    <button @click="goToSlide(1)" class="px-6 py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-2xl transition-all inline-flex items-center gap-2 text-xs uppercase tracking-widest">
-                        🔄 {{ locale === 'en' ? 'Restart Guide' : 'ድጋሚ ጀምር' }}
-                    </button>
+                <!-- RIGHT SIDE: SIMULATED OPERATIONS SANDBOX -->
+                <div class="rounded-[32px] p-6 lg:p-8 border flex flex-col justify-center relative overflow-hidden animate-fade-in"
+                     :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-250 shadow-md'"
+                >
+                    
+                    <!-- LAB 1 SANDBOX: COGS AUDIT -->
+                    <div v-if="currentStep === 1" class="space-y-4 w-full">
+                        <div class="flex justify-between items-center pb-2 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Zenith PLC Inventory (Meskeram 2026)</span>
+                        </div>
+
+                        <!-- Inventory Table Card -->
+                        <div class="p-4 border rounded-2xl space-y-3" :class="isDark ? 'bg-slate-950/20 border-slate-850' : 'bg-slate-50 border-slate-200'">
+                            <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
+                                <div>
+                                    <span class="text-slate-500 block uppercase text-[9px] mb-1">Starting Stock</span>
+                                    <span :class="isDark ? 'text-white' : 'text-slate-900'">150,000.00</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-500 block uppercase text-[9px] mb-1">Purchases</span>
+                                    <span :class="isDark ? 'text-white' : 'text-slate-900'">230,000.00</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-500 block uppercase text-[9px] mb-1">Ending Stock</span>
+                                    <span :class="isDark ? 'text-white' : 'text-slate-900'">100,000.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Formula code helper -->
+                        <div class="p-4 bg-emerald-500/10 border border-emerald-500/25 text-emerald-450 rounded-2xl text-xs font-mono text-center leading-relaxed">
+                            COGS = Starting Stock + Purchases - Ending Stock
+                        </div>
+
+                        <div v-if="lab1Passed" class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-black uppercase rounded-xl text-center animate-pulse">
+                            {{ locale === 'en' ? 'COGS verified!' : 'የዕቃ መግዣ ወጪ ተረጋግጧል!' }}
+                        </div>
+                    </div>
+
+                    <!-- LAB 2 SANDBOX: TAX CALCULATOR -->
+                    <div v-if="currentStep === 2" class="space-y-4 w-full">
+                        <div class="flex justify-between items-center pb-2 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Awash Coffee Exports (Corporate Return)</span>
+                        </div>
+
+                        <!-- Net Profit Details card -->
+                        <div class="p-4 border rounded-2xl space-y-3 font-semibold" :class="isDark ? 'bg-slate-950/20 border-slate-850' : 'bg-slate-50 border-slate-200'">
+                            <div class="flex justify-between items-center text-xs">
+                                <span :class="isDark ? 'text-slate-400' : 'text-slate-650'">Sales Revenue:</span>
+                                <span :class="isDark ? 'text-white' : 'text-slate-900'">700,000.00 ETB</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs">
+                                <span :class="isDark ? 'text-slate-400' : 'text-slate-650'">Total COGS & Expenses:</span>
+                                <span :class="isDark ? 'text-white' : 'text-slate-900'">400,000.00 ETB</span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs border-t pt-2" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                                <span :class="isDark ? 'text-slate-350' : 'text-slate-700'">Net Profit (NIBT):</span>
+                                <span class="font-extrabold text-emerald-500 text-sm">300,000.00 ETB</span>
+                            </div>
+                        </div>
+
+                        <!-- Formula code helper -->
+                        <div class="p-4 bg-emerald-500/10 border border-emerald-500/25 text-emerald-450 rounded-2xl text-xs font-mono text-center leading-relaxed">
+                            Tax = (Net Profit * 0.35) - 24,600 ETB
+                        </div>
+
+                        <div v-if="lab2Passed" class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-black uppercase rounded-xl text-center animate-pulse">
+                            {{ locale === 'en' ? 'Estimated Profit Tax Verified!' : 'የንግድ ትርፍ ግብር በትክክል ተረጋግጧል!' }}
+                        </div>
+                    </div>
+
+                    <!-- LAB 3 SANDBOX: INVOICE SETTLEMENT & MATCHING -->
+                    <div v-if="currentStep === 3" class="space-y-4 w-full">
+                        <div class="flex justify-between items-center pb-2 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nile Textile Outstanding Invoice</span>
+                        </div>
+
+                        <!-- Unpaid Invoice Card -->
+                        <div class="p-4 border rounded-2xl space-y-3"
+                             :class="[
+                                 invoiceSettled 
+                                     ? 'bg-emerald-500/5 border-emerald-500/25 shadow-emerald-500/5' 
+                                     : (isDark ? 'bg-slate-950/20 border-slate-850' : 'bg-slate-50 border-slate-250 shadow-sm')
+                             ]"
+                        >
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-[10px] text-slate-500 uppercase">Invoice Ref</span>
+                                    <h4 class="text-sm font-black" :class="isDark ? 'text-white' : 'text-slate-900'">#INV-2026-081</h4>
+                                </div>
+                                <span class="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border"
+                                      :class="[
+                                          invoiceSettled 
+                                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/25 animate-pulse' 
+                                              : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                                      ]"
+                                >
+                                    {{ invoiceSettled ? content[locale].lab3.settledBadge : content[locale].lab3.unsettledBadge }}
+                                </span>
+                            </div>
+                            <div class="flex justify-between text-xs pt-1 border-t" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                                <span class="text-slate-500 font-bold uppercase">Amount Due:</span>
+                                <span class="font-extrabold text-emerald-500">45,000.00 ETB</span>
+                            </div>
+                        </div>
+
+                        <!-- Radio list of incoming deposits -->
+                        <div v-if="!invoiceSettled" class="space-y-3 pt-1">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                                {{ content[locale].lab3.depositLabel }}
+                            </span>
+                            
+                            <label class="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-500/10 transition-colors"
+                                   :class="selectedDeposit === 'deposit1' ? 'border-emerald-500' : 'border-slate-850'"
+                            >
+                                <input type="radio" v-model="selectedDeposit" value="deposit1" class="mt-0.5 accent-emerald-500">
+                                <div class="text-xs">
+                                    <span class="font-bold text-slate-350 block" :class="isDark ? 'text-slate-200' : 'text-slate-800'">Deposit: 10,000.00 ETB</span>
+                                    <span class="text-[10px] text-slate-550 block">Ref: CBE-88229 | Client: Abay Textile</span>
+                                </div>
+                            </label>
+
+                            <label class="flex items-start gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-500/10 transition-colors"
+                                   :class="selectedDeposit === 'deposit2' ? 'border-emerald-500' : 'border-slate-850'"
+                            >
+                                <input type="radio" v-model="selectedDeposit" value="deposit2" class="mt-0.5 accent-emerald-500">
+                                <div class="text-xs">
+                                    <span class="font-bold text-slate-350 block" :class="isDark ? 'text-slate-200' : 'text-slate-800'">Deposit: 45,000.00 ETB</span>
+                                    <span class="text-[10px] text-slate-500 font-bold block text-indigo-400">Ref: CBE-99201 | Nile Textile (INV-081 Payment)</span>
+                                </div>
+                            </label>
+
+                            <button @click="settleInvoice"
+                                    :disabled="selectedDeposit !== 'deposit2'"
+                                    class="w-full py-3 bg-emerald-650 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
+                            >
+                                {{ content[locale].lab3.settleBtn }}
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
             </div>
+
+            <!-- STEP 4: GRADUATION -->
+            <div v-if="currentStep === 4" class="max-w-4xl mx-auto py-4 space-y-8 animate-fade-in relative z-10">
+                <!-- Pure-CSS Confetti Particles -->
+                <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div class="confetti-particle bg-emerald-500 top-0 left-[10%]"></div>
+                    <div class="confetti-particle bg-teal-500 top-0 left-[30%]"></div>
+                    <div class="confetti-particle bg-indigo-500 top-0 left-[50%]"></div>
+                    <div class="confetti-particle bg-purple-500 top-0 left-[70%]"></div>
+                    <div class="confetti-particle bg-yellow-500 top-0 left-[90%]"></div>
+                </div>
+
+                <div class="text-center space-y-4 max-w-2xl mx-auto">
+                    <span class="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/25 text-emerald-450 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest animate-pulse">
+                        <SparklesIcon class="h-4 w-4" />
+                        {{ content[locale].graduation.title }}
+                    </span>
+                    <h2 class="text-4xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-900'">
+                        {{ locale === 'en' ? 'Auditor Certified!' : 'የፋይናንስ ኦዲተር ብቃት ማረጋገጫ ተሰጥቶዎታል!' }}
+                    </h2>
+                    <p class="text-base font-semibold" :class="isDark ? 'text-slate-400' : 'text-slate-650'">
+                        {{ content[locale].graduation.subtitle }}
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-8 items-center">
+                    
+                    <!-- Left Column: Certificate Badge details & User Name Input -->
+                    <div class="md:col-span-2 space-y-6">
+                        <div class="p-6 rounded-[28px] border space-y-4" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-lg'">
+                            <span class="text-xs font-black uppercase text-slate-500 block">{{ content[locale].graduation.badgeLabel }}</span>
+                            <div class="flex items-center gap-4">
+                                <span class="h-16 w-16 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-650 flex items-center justify-center text-3xl shadow-lg">🎓</span>
+                                <div>
+                                    <h4 class="font-black text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ content[locale].graduation.badgeTitle }}</h4>
+                                    <p class="text-xs text-slate-550 font-semibold">{{ content[locale].graduation.badgeDesc }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Name Edit Input -->
+                        <div class="space-y-2">
+                            <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].graduation.certNameLabel }}</label>
+                            <input type="text" v-model="userName" 
+                                   class="w-full bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold text-sm outline-none transition-all"
+                                   :class="isDark ? 'border-slate-800 text-white focus:border-emerald-500' : 'border-slate-250 text-slate-900 focus:border-emerald-500'"
+                            >
+                        </div>
+
+                        <Link href="/training" 
+                              class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-center font-black rounded-2xl text-xs uppercase tracking-wider transition-all block shadow-lg shadow-emerald-600/10 hover:-translate-y-0.5"
+                        >
+                            {{ content[locale].graduation.homeBtn }}
+                        </Link>
+                    </div>
+
+                    <!-- Right Column: Official Certificate Mockup -->
+                    <div class="md:col-span-3">
+                        <div class="rounded-[36px] border-8 p-8 relative overflow-hidden shadow-2xl text-center space-y-6"
+                             :class="isDark 
+                                 ? 'bg-[#050e0d] border-emerald-500/30 text-slate-350 shadow-emerald-500/5' 
+                                 : 'bg-white border-emerald-100 text-slate-700 shadow-xl'"
+                        >
+                            <!-- Seals & Decoration -->
+                            <div class="absolute top-4 left-4 h-10 w-10 border-t-2 border-l-2 border-emerald-500/20"></div>
+                            <div class="absolute top-4 right-4 h-10 w-10 border-t-2 border-r-2 border-emerald-500/20"></div>
+                            <div class="absolute bottom-4 left-4 h-10 w-10 border-b-2 border-l-2 border-emerald-500/20"></div>
+                            <div class="absolute bottom-4 right-4 h-10 w-10 border-b-2 border-r-2 border-emerald-500/20"></div>
+
+                            <div class="space-y-2">
+                                <span class="text-[9px] uppercase font-black text-emerald-500 tracking-widest">Certificate of Finance Excellence</span>
+                                <h3 class="text-xl sm:text-2xl font-black font-outfit tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400 uppercase">
+                                    {{ content[locale].graduation.certTitle }}
+                                </h3>
+                                <p class="text-xs uppercase font-extrabold text-slate-500">{{ content[locale].graduation.certSubtitle }}</p>
+                            </div>
+
+                            <div class="py-4 border-y border-slate-500/10">
+                                <span class="text-xs text-slate-500 block uppercase mb-1">PROUDLY PRESENTED TO</span>
+                                <span class="text-2xl sm:text-3xl font-black font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">
+                                    {{ userName }}
+                                </span>
+                            </div>
+
+                            <p class="text-[11px] leading-relaxed font-semibold max-w-md mx-auto">
+                                {{ content[locale].graduation.certBody }}
+                            </p>
+
+                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 pt-4 uppercase">
+                                <span>{{ content[locale].graduation.certDate }}</span>
+                                <span class="text-emerald-455 font-extrabold">GGAA Audit Academy</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
         </main>
 
-        <!-- Slides Navigation Controls -->
-        <footer class="w-full py-6 px-6 lg:px-12 flex justify-between items-center border-t sticky bottom-0 z-50 transition-colors"
-                :class="isDark ? 'border-slate-800 bg-[#070b13]' : 'border-slate-200 bg-slate-100'"
+        <!-- Footer Operations Title -->
+        <footer class="w-full py-4 border-t transition-colors text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest"
+                :class="isDark ? 'border-slate-850 bg-[#050b0a]' : 'border-slate-200 bg-slate-100'"
         >
-            <span class="text-xs font-bold" :class="isDark ? 'text-slate-500' : 'text-slate-660'">
-                {{ locale === 'en' ? 'GGAA Finance Course' : 'ጂጂኤኤ የፋይናንስ ስልጠና' }}
-            </span>
-            
-            <div class="flex items-center gap-6">
-                <button @click="prevSlide" class="p-2.5 rounded-xl border hover:scale-105 active:scale-95 transition-all text-slate-400 hover:text-emerald-500"
-                        :class="isDark ? 'border-slate-800 hover:bg-slate-900' : 'border-slate-200 hover:bg-white'"
-                >
-                    <ChevronLeftIcon class="h-4 w-4" />
-                </button>
-                
-                <span class="text-sm font-bold tracking-wider font-outfit" :class="isDark ? 'text-slate-400' : 'text-slate-700'">
-                    {{ locale === 'en' ? 'Slide' : 'ስላይድ' }} <span class="text-emerald-500">{{ currentSlide }}</span> of <span>{{ totalSlides }}</span>
-                </span>
-                
-                <button @click="nextSlide" class="p-2.5 rounded-xl border hover:scale-105 active:scale-95 transition-all text-slate-400 hover:text-emerald-500"
-                        :class="isDark ? 'border-slate-800 hover:bg-slate-900' : 'border-slate-200 hover:bg-white'"
-                >
-                    <ChevronRightIcon class="h-4 w-4" />
-                </button>
-            </div>
-            
-            <div class="text-[11px] uppercase font-black hidden md:block" :class="isDark ? 'text-slate-660' : 'text-slate-400'">
-                GGAA Systems
-            </div>
+            GGAA Systems Portal • finance simulator
         </footer>
-
     </div>
 </template>
 
@@ -779,4 +702,25 @@ const slides = {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Custom pure-CSS Confetti Particles falling/rising */
+.confetti-particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: confetti-fall 4s linear infinite;
+    opacity: 0.7;
+}
+
+@keyframes confetti-fall {
+    0% { transform: translateY(-50px) rotate(0deg); opacity: 0.7; }
+    50% { opacity: 0.9; }
+    100% { transform: translateY(600px) rotate(360deg); opacity: 0; }
+}
+
+.confetti-particle:nth-child(2) { animation-delay: 0.8s; width: 10px; height: 10px; }
+.confetti-particle:nth-child(3) { animation-delay: 1.5s; width: 6px; height: 6px; }
+.confetti-particle:nth-child(4) { animation-delay: 2.2s; width: 9px; height: 9px; }
+.confetti-particle:nth-child(5) { animation-delay: 3s; width: 7px; height: 7px; }
 </style>

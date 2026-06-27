@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { 
     AcademicCapIcon, 
@@ -16,6 +16,27 @@ const { locale } = useI18n();
 
 const isDark = ref(true);
 
+const completedTracks = ref({
+    employees: false,
+    admins: false,
+    finances: false
+});
+
+const progressPercent = computed(() => {
+    let count = 0;
+    if (completedTracks.value.employees) count++;
+    if (completedTracks.value.admins) count++;
+    if (completedTracks.value.finances) count++;
+    return Math.round((count / 3) * 100);
+});
+
+function isTrackCompleted(href) {
+    if (href.includes('employees')) return completedTracks.value.employees;
+    if (href.includes('admins')) return completedTracks.value.admins;
+    if (href.includes('finances')) return completedTracks.value.finances;
+    return false;
+}
+
 onMounted(() => {
     const savedTheme = localStorage.getItem('training-theme');
     if (savedTheme === 'light') {
@@ -23,6 +44,11 @@ onMounted(() => {
     }
     const savedLocale = localStorage.getItem('locale') || 'en';
     locale.value = savedLocale;
+
+    // Load progress from localStorage
+    completedTracks.value.employees = localStorage.getItem('training-completed-employees') === 'true';
+    completedTracks.value.admins = localStorage.getItem('training-completed-admins') === 'true';
+    completedTracks.value.finances = localStorage.getItem('training-completed-finances') === 'true';
 });
 
 function toggleTheme() {
@@ -176,7 +202,7 @@ const content = {
                 </span>
                 
                 <h1 class="text-5xl sm:text-7xl font-black font-outfit tracking-tight leading-tight"
-                    :class="isDark ? 'text-white' : 'text-slate-950'"
+                    :class="isDark ? 'text-white' : 'text-slate-955'"
                 >
                     {{ locale === 'en' ? 'Master the' : 'የ' }} 
                     <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-blue-500 to-emerald-400">
@@ -192,12 +218,35 @@ const content = {
                 </p>
             </div>
 
+            <!-- Academy Progress Card -->
+            <div class="max-w-xl mx-auto backdrop-blur-md rounded-3xl p-6 border shadow-xl text-center space-y-3 transition-all"
+                 :class="isDark ? 'bg-slate-950/20 border-slate-800' : 'bg-white border-slate-200'"
+            >
+                <div class="flex justify-between items-center text-xs font-black uppercase tracking-wider"
+                     :class="isDark ? 'text-slate-400' : 'text-slate-500'"
+                >
+                    <span>{{ locale === 'en' ? 'Academy Progress' : 'የአካዳሚው አጠቃላይ ሁኔታ' }}</span>
+                    <span class="text-indigo-400 font-extrabold">{{ progressPercent }}%</span>
+                </div>
+                <div class="w-full bg-slate-500/15 rounded-full h-3 overflow-hidden p-0.5 border"
+                     :class="isDark ? 'border-slate-800' : 'border-slate-200'"
+                >
+                    <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500 transition-all duration-700"
+                         :style="`width: ${progressPercent}%`"
+                    ></div>
+                </div>
+                <p class="text-xs font-semibold" :class="isDark ? 'text-slate-500' : 'text-slate-400'">
+                    {{ locale === 'en' ? 'Complete all 3 operational courses to become a certified GGAA professional.' : 'የምስክር ወረቀት ለማግኘት ሁሉንም 3 የስልጠና ክፍሎች ያጠናቅቁ።' }}
+                </p>
+            </div>
+
             <!-- Tracks Grid (Larger and cleaner layout) -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div v-for="track in content[locale].tracks" :key="track.name"
                      class="group relative backdrop-blur-xl border rounded-[36px] p-8 flex flex-col justify-between transition-all duration-300 hover:-translate-y-2.5 shadow-2xl hover:bg-opacity-95"
                      :class="[
                          track.glow,
+                         isTrackCompleted(track.href) ? 'border-emerald-500/40 shadow-emerald-500/10' : '',
                          isDark 
                              ? 'bg-[#0d1526]/50 border-slate-800/80 hover:bg-[#0f192e]' 
                              : 'bg-white border-slate-200 hover:bg-slate-100/50 text-slate-800'
@@ -209,13 +258,20 @@ const content = {
                             <div class="h-14 w-14 rounded-2xl bg-gradient-to-tr flex items-center justify-center text-white shadow-xl transform group-hover:scale-110 transition-transform" :class="track.color">
                                 <component :is="track.icon" class="h-7 w-7" />
                             </div>
-                            <span class="text-xs font-black uppercase tracking-wider px-3.5 py-1.5 rounded-full border"
-                                  :class="isDark 
-                                      ? 'text-slate-400 bg-slate-900/60 border-slate-800' 
-                                      : 'text-slate-600 bg-slate-100 border-slate-250'"
-                            >
-                                {{ track.badge }}
-                            </span>
+                            <div class="flex items-center gap-2">
+                                <span v-if="isTrackCompleted(track.href)"
+                                      class="inline-flex items-center gap-1 text-[11px] font-black uppercase text-emerald-500 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-full animate-pulse"
+                                >
+                                    🎓 {{ locale === 'en' ? 'Done' : 'ተጠናቋል' }}
+                                </span>
+                                <span class="text-xs font-black uppercase tracking-wider px-3.5 py-1.5 rounded-full border"
+                                      :class="isDark 
+                                          ? 'text-slate-400 bg-slate-900/60 border-slate-800' 
+                                          : 'text-slate-600 bg-slate-100 border-slate-250'"
+                                >
+                                    {{ track.badge }}
+                                </span>
+                            </div>
                         </div>
 
                         <!-- Content with Larger Text -->
@@ -231,7 +287,7 @@ const content = {
                                 {{ track.title }}
                             </h3>
                             <p class="text-base leading-relaxed font-medium mt-3"
-                               :class="isDark ? 'text-slate-400' : 'text-slate-600'"
+                               :class="isDark ? 'text-slate-400' : 'text-slate-650'"
                             >
                                 {{ track.description }}
                             </p>
@@ -242,11 +298,15 @@ const content = {
                     <div class="pt-8">
                         <Link :href="track.href"
                               class="w-full py-4 px-5 font-black rounded-2xl transition-all flex items-center justify-between text-sm uppercase tracking-wider font-outfit shadow-md group-hover:shadow-lg"
-                              :class="isDark
-                                  ? 'bg-slate-900 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-800 hover:border-indigo-500'
-                                  : 'bg-white hover:bg-indigo-600 text-slate-800 hover:text-white border border-slate-200 hover:border-indigo-500'"
+                              :class="[
+                                  isTrackCompleted(track.href)
+                                      ? 'bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border-emerald-500/30'
+                                      : (isDark
+                                          ? 'bg-slate-900 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-800 hover:border-indigo-500'
+                                          : 'bg-white hover:bg-indigo-600 text-slate-800 hover:text-white border border-slate-200 hover:border-indigo-500')
+                              ]"
                         >
-                            <span>{{ content[locale].begin }}</span>
+                            <span>{{ isTrackCompleted(track.href) ? (locale === 'en' ? 'Review Course' : 'ድጋሚ ክለሳ') : content[locale].begin }}</span>
                             <ChevronRightIcon class="h-5 w-5 transition-transform group-hover:translate-x-1.5" />
                         </Link>
                     </div>

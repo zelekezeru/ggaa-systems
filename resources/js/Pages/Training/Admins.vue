@@ -1,25 +1,23 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { 
     ShieldCheckIcon, AcademicCapIcon,
     ChevronLeftIcon, ChevronRightIcon,
-    ArrowLeftIcon, SunIcon, MoonIcon
+    ArrowLeftIcon, SunIcon, MoonIcon,
+    CheckCircleIcon, ExclamationTriangleIcon,
+    LockClosedIcon, ArchiveBoxIcon, UserGroupIcon,
+    SparklesIcon
 } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
 
 const { locale } = useI18n();
 
 const isDark = ref(true);
-const currentSlide = ref(1);
-const totalSlides = 9;
+const currentStep = ref(0); // 0: Overview, 1: Lab 1, 2: Lab 2, 3: Lab 3, 4: Graduation
+const userName = ref('Abebe Kebede');
 
-// Interactive workload assigner state
-const assignTarget = ref(''); // 'abebe' or 'lydia'
-
-// Interactive locking state
-const unlockToEdit = ref(false);
-
+// Load settings
 onMounted(() => {
     const savedTheme = localStorage.getItem('training-theme');
     if (savedTheme === 'light') {
@@ -39,222 +37,259 @@ function setLanguage(lang) {
     localStorage.setItem('locale', lang);
 }
 
-function nextSlide() {
-    if (currentSlide.value < totalSlides) currentSlide.value++;
+// ==========================================
+// LAB 1 STATE: CAPACITY ASSIGNER
+// ==========================================
+const assignTarget = ref(''); // 'abebe' or 'lydia'
+const lab1Passed = computed(() => {
+    return assignTarget.value === 'abebe';
+});
+
+// ==========================================
+// LAB 2 STATE: CABINET LOCATOR
+// ==========================================
+const selectedCabinet = ref('');
+const selectedShelf = ref('');
+const lab2Error = ref('');
+const lab2Passed = ref(false);
+
+function recordArchive() {
+    lab2Error.value = '';
+    // Nile Import-Export starts with 'N'. Cabinets: 1 (A-G), 2 (H-N), 3 (O-Z)
+    // So Cabinet 2 is correct. Shelf coordinate can be any valid selection.
+    if (selectedCabinet.value === 'Cabinet 2' && selectedShelf.value) {
+        lab2Passed.value = true;
+    } else {
+        if (selectedCabinet.value !== 'Cabinet 2') {
+            if (locale.value === 'en') {
+                lab2Error.value = "❌ Incorrect Cabinet. 'Nile' must go to Cabinet 2 (H-N based on alphabetical order).";
+            } else {
+                lab2Error.value = "❌ የተሳሳተ ካቢኔ። 'Nile' በፊደል ቅደም ተከተል መሰረት ወደ ካቢኔ 2 (H-N) መሄድ አለበት።";
+            }
+        } else {
+            if (locale.value === 'en') {
+                lab2Error.value = "❌ Please select a Shelf coordinate.";
+            } else {
+                lab2Error.value = "❌ እባክዎ የመደርደሪያ ቦታ (Shelf) ይምረጡ።";
+            }
+        }
+    }
 }
 
-function prevSlide() {
-    if (currentSlide.value > 1) currentSlide.value--;
+// ==========================================
+// LAB 3 STATE: REVIEW & LOCK LEDGER
+// ==========================================
+const ledgerState = ref('mismatch'); // 'mismatch', 'rejected', 'corrected', 'locked'
+const unlockToEdit = ref(false);
+
+const lab3Passed = computed(() => {
+    return ledgerState.value === 'locked';
+});
+
+function rejectLedger() {
+    if (ledgerState.value === 'mismatch') {
+        ledgerState.value = 'rejected';
+        // Simulate accountant correcting the mismatch after 2.5 seconds
+        setTimeout(() => {
+            ledgerState.value = 'corrected';
+        }, 2000);
+    }
 }
 
-function goToSlide(n) {
-    if (n >= 1 && n <= totalSlides) currentSlide.value = n;
-}
+// Watch unlock switch
+watch(unlockToEdit, (newVal) => {
+    if (ledgerState.value === 'corrected' && newVal === true) {
+        ledgerState.value = 'locked';
+    } else if (ledgerState.value === 'locked' && newVal === false) {
+        ledgerState.value = 'corrected';
+    }
+});
 
-const checklistItems = ref([
-    { id: 1, text_en: 'Check the Branch scoreboard weekly to see how many tasks are completed on time.', text_am: 'የቅርንጫፉን ጠቅላላ የስራ አፈጻጸም በየሳምንቱ በመገምገም ስራዎች በሰዓቱ መጠናቀቃቸውን ያረጋግጡ።', checked: false },
-    { id: 2, text_en: 'Move clients away from busy staff members (stress level over 90%) to balance work.', text_am: 'የስራ ጫና የበዛባቸውን ሰራተኞች (ከ90% በላይ የሆኑ) ስራዎችን ወደ ሌሎች በማስተላለፍ ስራ ያደላድሉ::', checked: false },
-    { id: 3, text_en: 'Log physical coordinates (Shelf and Section) for every client folder we store.', text_am: 'ለእያንዳንዱ የምናስቀምጠው የደንበኛ ወረቀት መዝገብ ላይ ትክክለኛ የካቢኔ (Shelf) እና የሴክሽን ቦታ መዝግቡ::', checked: false },
-    { id: 4, text_en: 'Double-check submitted monthly books and print the officially signed PDF reports.', text_am: 'የቀረቡትን ወርሃዊ የሂሳብ መዛግብቶች በጥንቃቄ መርምረው ካረጋገጡ በኋላ የፒዲኤፍ ሪፖርት ያትሙ::', checked: false }
-]);
+// ==========================================
+// STATE SAVING ON GRADUATION
+// ==========================================
+watch(currentStep, (newStep) => {
+    if (newStep === 4) {
+        localStorage.setItem('training-completed-admins', 'true');
+    }
+});
 
-function toggleCheck(item) {
-    item.checked = !item.checked;
-}
-
-// Simple and Friendly bilingual slide content
-const slides = {
+// Bilingual content dictionary
+const content = {
     en: {
-        slide1: {
-            badge: "Part 2: Admins & Managers Course",
-            title: "Manager Oversight & Team Control",
-            subtitle: "Welcome! This friendly guide is made for senior staff and managers. Learn how to register new clients, assign tasks safely, organize physical archives, and verify monthly financial records."
+        backBtn: "Back to Tracks",
+        headerTitle: "Manager Academy",
+        headerSubtitle: "Branch Operations Simulator",
+        stepNames: ["Overview", "Lab 1: Assigner", "Lab 2: Archives", "Lab 3: Audit", "Graduation 🎓"],
+        
+        overview: {
+            title: "Welcome to GGAA Manager Academy!",
+            desc1: "As a branch manager, your job is to coordinate team workloads, organize physical client folders, and audit financial ledgers submitted by standard accountants. Mistakes in client capacity or tax data can disrupt branch compliance.",
+            desc2: "This interactive simulator contains three practical lab challenges that verify your competence in workload allocation, archiving mapping, and ledger locking.",
+            startBtn: "Start Manager Training",
         },
-        slide2: {
-            badge: "Part 2: Branch Scoreboard",
-            title: "Your Branch Dashboard at a Glance",
-            subtitle: "The dashboard collects live numbers across your branch so you can see exactly how well your team is performing and where to help.",
-            metric1: "Overall Compliance",
-            metric1Desc: "Percentage of monthly books completed without mistakes.",
-            metric2: "On-Time Completion",
-            metric2Desc: "Proportion of tasks completed before their due dates.",
-            panelTitle: "Branch Stats Overview",
-            item1: "Onboarded Businesses",
-            item2: "Staff Capacity Utilized",
-            item3: "Pending Manager Audits",
-            activeText: "142 Active Clients",
-            capacityText: "62% Load (Healthy)",
-            auditsText: "8 Files waiting"
+        lab1: {
+            guideTitle: "Lab 1: Load Allocator",
+            intro: "Senior accountants have a max capacity limit of 80 points. Standard junior accountants also have an 80 Pts limit. The system blocks managers from assigning work that exceeds an accountant's capacity.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. A new client 'Sheger PLC' (Complexity: 25 Pts) needs an accountant.",
+            inst2: "2. Try assigning Sheger PLC to Lydia (Junior) and view the allocation block warning.",
+            inst3: "3. Re-assign the client to Abebe (Senior) to balance the workload, then click 'Next Lab'.",
+            widgetTitle: "Client Assignment Board",
+            clientCard: "Incoming Client: Sheger PLC (25 Pts)",
+            staffA: "Abebe (Senior) — Current Load: 50 / 80 Pts",
+            staffL: "Lydia (Junior) — Current Load: 65 / 80 Pts",
+            assignABtn: "Assign to Abebe",
+            assignLBtn: "Assign to Lydia",
+            errorMsg: "❌ Safety Blocked! Assigning 25 Pts to Lydia (65 Pts) would equal 90/80 Pts, violating her workload limit.",
+            successMsg: "🎉 Success! Abebe has been assigned Sheger PLC. His load is now 75/80 Pts, which is busy but safe.",
         },
-        slide3: {
-            badge: "Part 3: Onboarding Clients",
-            title: "Registering New Clients Easily",
-            subtitle: "When you add a new business to the system, you save important settings that dictate how tax calculations and task lists are created:",
-            p1: "📌 Tax IDs (TIN Mappings): Storing unique 10-digit Tax IDs to satisfy government e-filing systems.",
-            p2: "🏢 Legal Classification: Registering the company as PLC, Sole Proprietorship, etc., which automatically sets up their tax forms.",
-            p3: "💳 Linked Bank Accounts: Associating corporate bank accounts for easy bookkeeping reconciliation."
+        lab2: {
+            guideTitle: "Lab 2: Physical Archiving Map",
+            intro: "We record coordinates (Cabinet and Shelf number) for physical paper files. The cabinets are structured alphabetically: Cabinet 1 (A-G), Cabinet 2 (H-N), and Cabinet 3 (O-Z).",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. You have a folder for 'Nile Import-Export' to archive.",
+            inst2: "2. Identify the correct alphabetical cabinet based on the name 'Nile'.",
+            inst3: "3. Choose the cabinet and shelf coordinates in the form, then click 'Record Archive Location'.",
+            panelTitle: "Archive Registry Form",
+            cabinetLabel: "Select Cabinet:",
+            shelfLabel: "Select Shelf Coordinate:",
+            submitBtn: "Record Archive Location",
+            successMsg: "🎉 Success! Nile folder has been archived in Cabinet 2 (H-N) on Shelf B-3. Search coordinate saved.",
         },
-        slide4: {
-            badge: "Part 4: Workload Assigner",
-            title: "Safe Work Allocation Console",
-            subtitle: "GGAA uses an intelligent workload allocation system. You can see how much work your staff has in real-time, preventing employee burnout.",
-            boxTitle: "Try It Yourself: Interactive Client Assigner",
-            boxSub: "A new client Sheger PLC (Complexity: 25 Pts) needs an accountant. Choose who to assign it to:",
-            assignA: "Assign Sheger to Abebe",
-            assignL: "Assign Sheger to Lydia",
-            aInitial: "Abebe (Senior) — Current Load: 50 / 80 Pts",
-            lInitial: "Lydia (Junior) — Current Load: 65 / 80 Pts",
-            aFinal: "Abebe — New Load: 75 / 80 Pts (93% - Busy but safe)",
-            lFinal: "Lydia — New Load: 90 / 80 Pts (112% - OVERLOADED!)",
-            successMsg: "✅ Abebe is busy, but the system successfully assigned Sheger to him!",
-            errorMsg: "❌ Allocation Blocked! Assigning Sheger to Lydia would exceed her max workload limit (80 Pts)!",
-            resetBtn: "🔄 Reset Assigner"
+        lab3: {
+            guideTitle: "Lab 3: Ledger Locking Switch",
+            intro: "Reconciled ledger books must be verified by the manager before they are published. If you spot a mismatch between invoiced sales and cash register reports, you must reject the ledger for correction. Once corrected, lock the ledger.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. Inspect the draft ledger submitted for 'Abay Trading' on the right.",
+            inst2: "2. Click 'Reject & Request Corrections' due to the cash register mismatch.",
+            inst3: "3. Wait for the accountant's correction, then toggle the 'Lock-to-Edit' switch to lock it.",
+            panelTitle: "Abay Trading Ledger Review",
+            salesLabel: "Draft Invoiced Sales:",
+            zReportLabel: "Z-Report Machine Scan:",
+            warningAlert: "⚠️ Sales mismatch! Books out of sync by 2,000 ETB.",
+            rejectBtn: "Reject & Request Corrections",
+            waitMsg: "⏳ Requesting corrections from accountant...",
+            correctedMsg: "✅ Mismatch resolved! Sales is updated to 242,000.00 ETB. Ready to lock.",
+            lockSwitchLabel: "Unlock-to-Edit Mode",
+            lockedBadge: "VERIFIED & LOCKED SECURELY",
+            unlockedBadge: "UNLOCKED (Review Mode)",
+            switchDesc: "Toggle on to lock the ledger for client viewing.",
+            successMsg: "🎉 Success! The ledger has been audited, resolved, and locked secure. It is now live on the client portal.",
         },
-        slide5: {
-            badge: "Part 5: Digital & Physical Vaults",
-            title: "Physical Folder & Digital Archiving",
-            subtitle: "We track both digital scan uploads and physical paper folders to make sure no client documents are ever lost.",
-            p1: "📁 Digital Scans: TIN certificates, business licenses, and tax booklets are saved directly in our secure cloud.",
-            p2: "🗄️ Physical Archiving: We record the exact shelf and section for paper folders so you can find any physical file in less than 60 seconds."
-        },
-        slide6: {
-            badge: "Part 6: Task Templates",
-            title: "Creating Reusable Task Lists",
-            subtitle: "Instead of creating a to-do list manually every month, Admins create easy Task Templates that automatically generate tasks for active clients.",
-            p1: "📅 Due Date Offsets: Automatically calculates the due date relative to the month-end (e.g. 10 days offset means due on the 10th).",
-            p2: "🔧 Auto-generation: Work tasks are created on autopilot whenever a client subscribes to accounting or tax services."
-        },
-        slide7: {
-            badge: "Part 7: Safe Scopes",
-            title: "Built-in Security: View Only What You Own",
-            subtitle: "The platform has built-in security that automatically keeps client data safe without you needing to do any manual checks.",
-            p1: "🔒 Branch Managers: Automatically see client data and files only within their specific branch.",
-            p2: "🔒 Standard Employees: Restricted to view only their assigned client portfolios.",
-            p3: "🔒 Clients: Only see their own verified financial ledgers and billing invoices."
-        },
-        slide8: {
-            badge: "Part 8: Ledger Lock",
-            title: "Reconciliation Auditing & Sign-Offs",
-            subtitle: "When employees finish monthly client books, they submit them for your review. Senior managers can verify and sign off on these records.",
-            p1: "👁️ Locking Mechanism: Once verified, records are locked automatically. The client can now see these verified books in their portal.",
-            p2: "🔑 Unlock-to-Edit switch: If the client requests corrections, Admins can toggle this switch to unlock the files and make adjustments.",
-            boxTitle: "Try It Yourself: Live Locking Switch",
-            indicatorL: "UNLOCKED (Auditing Mode)",
-            indicatorV: "VERIFIED (Locked Securely)",
-            toggleLabel: "Unlock-to-Edit Mode",
-            toggleDesc: "Unlocks the verified ledger for corrections",
-            widgetTip: "💡 Toggle the switch above to experience the lock/unlock security engine!"
-        },
-        slide9: {
-            badge: "Part 9: Graduation",
-            title: "Your Daily Manager Checklist",
-            subtitle: "Keep this simple checklist handy every day to maintain a highly productive and compliant branch:"
+        graduation: {
+            title: "Congratulations, Branch Manager!",
+            subtitle: "You have completed all three manager oversight practical labs.",
+            badgeLabel: "Unlocked Profile Badge:",
+            badgeTitle: "🛡️ Compliance Champion",
+            badgeDesc: "Successfully verified branch operations and folder logs with 100% compliance.",
+            certTitle: "BRANCH OPERATIONS MANAGER",
+            certSubtitle: "GGAA Systems Leadership Academy",
+            certBody: "This certifies that the holder has passed the rigorous operations simulator, demonstrated proficiency in capacity scheduling, GPS errand logging, and tax ID validation.",
+            certDate: "Certified on: June 2026",
+            certNameLabel: "Change Certificate Name:",
+            homeBtn: "Return to Training Hub",
         }
     },
     am: {
-        slide1: {
-            badge: "ክፍል 2፡ የአስተዳዳሪዎችና ማናጀሮች ኮርስ",
-            title: "የማናጀር ክትትል እና የቡድን ቁጥጥር",
-            subtitle: "እንኳን ደህና መጡ! ይህ መመሪያ ለአስተዳዳሪዎች እና ለማናጀሮች የተዘጋጀ ነው። አዳዲስ ደንበኞችን እንዴት እንደሚመዘግቡ፣ ስራዎችን እንዴት እንደሚያደላድሉ፣ ወረቀቶችን እንደሚያስቀምጡ እና ወርሃዊ መዛግብትን እንደሚያጸድቁ ይማሩ።"
+        backBtn: "ወደ ስልጠናዎች ተመለስ",
+        headerTitle: "የአስተዳዳሪዎች ማሰልጠኛ",
+        headerSubtitle: "የቅርንጫፍ ስራዎች ማስመሰያ ገጽ",
+        stepNames: ["ማጠቃለያ", "ላብ 1: ስራ ማደላደል", "ላብ 2: ማህደር", "ላብ 3: ኦዲት", "ምረቃ 🎓"],
+        
+        overview: {
+            title: "እንኳን ወደ አስተዳዳሪዎች ስልጠና በደህና መጡ!",
+            desc1: "እንደ ቅርንጫፍ ማናጀር፣ የእርስዎ ሃላፊነት የቡድንዎን የስራ ጫና ማደላደል፣ አካላዊ የደንበኞች ፋይሎችን ማደራጀት፣ እና በአካውንታንቶች የተሞሉ የሂሳብ መዛግብትን ማረጋገጥ ነው። በስራ ድልድል ወይም በታክስ ስሌት ላይ የሚሰሩ ስህተቶች የቅርንጫፍዎን አፈጻጸም ያበላሻሉ።",
+            desc2: "ይህ ማስመሰያ አስተዳዳሪዎች ስራዎችን እንዴት በቀላሉ ማስተዳደር እንዳለባቸው በተግባር የሚያሳዩ 3 ላብራቶሪዎችን የያዘ ነው።",
+            startBtn: "የአስተዳዳሪ ስልጠናውን ጀምር",
         },
-        slide2: {
-            badge: "ክፍል 2፡ የቅርንጫፍ የስራ ሰሌዳ",
-            title: "የቅርንጫፍዎ አፈጻጸም በአንድ እይታ",
-            subtitle: "ይህ ሰሌዳ ቡድንዎ ምን ያህል በጥሩ ሁኔታ እየሰራ እንደሆነ እና የትኛው ላይ ማገዝ እንዳለብዎ በቅጽበት ጠቅላላ መረጃ ይሰጥዎታል፡",
-            metric1: "ጠቅላላ ተገዢነት",
-            metric1Desc: "ያለ ምንም ስህተት ተረጋግጠው ያለፉ ወርሃዊ መዛግብት መቶኛ።",
-            metric2: "ስራዎችን በሰዓቱ ማጠናቀቅ",
-            metric2Desc: "ከቀነ ገደቡ በፊት ተጠናቀው የጸደቁ ስራዎች ጥምርታ።",
-            panelTitle: "የቅርንጫፉ ጠቅላላ መረጃ",
-            item1: "የተመዘገቡ ደንበኞች",
-            item2: "የሰራተኞች ጠቅላላ ጫና",
-            item3: "ለማናጀር የቀረቡ ኦዲቶች",
-            activeText: "142 ንቁ ደንበኞች",
-            capacityText: "62% ጫና (ጤናማ)",
-            auditsText: "8 ፋይሎች ይጠበቃሉ"
+        lab1: {
+            guideTitle: "ላብ 1: የስራ ጫና ማደላደል",
+            intro: "አካውንታንቶች ሊሸከሙት የሚችሉት ከፍተኛው የስራ ጫና ገደብ 80 ነጥብ ነው። ሲስተሙ ከአቅም በላይ ስራዎችን ለአካውንታንቶች እንዳይሰጡ በራስ-ሰር ይከላከላል።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. አዲስ ደንበኛ 'ሸገር ኃ/የተ/የግ/ማ' (የስራ ክብደት፡ 25 ነጥብ) መጥቷል።",
+            inst2: "2. ይህንን ስራ ለሊዲያ (ጁኒየር) ለመስጠት ይሞክሩ እና የጫና መከላከያ መልዕክቱን ይመልከቱ።",
+            inst3: "3. ስራውን ለአበበ (ሲኒየር) በመስጠት በቅርንጫፉ ውስጥ ስራ ያደላድሉ፣ ከዚያ 'ቀጣይ ላብ' የሚለውን ይጫኑ።",
+            widgetTitle: "ስራ ማደላደያ ሰሌዳ",
+            clientCard: "አዲስ የመጣ ደንበኛ: Sheger PLC (25 ነጥብ)",
+            staffA: "አበበ (ሲኒየር) — አሁን ያለበት ጫና፡ 50 / 80 ነጥብ",
+            staffL: "ሊዲያ (ጁኒየር) — አሁን ያለባት ጫና፡ 65 / 80 ነጥብ",
+            assignABtn: "ለአበበ ስጥ",
+            assignLBtn: "ለሊዲያ ስጥ",
+            errorMsg: "❌ ስራ ማደላደል አልተቻለም! 25 ነጥብ ለሊዲያ (65 ነጥብ) መስጠት አጠቃላይ ጫናዋን 90 ነጥብ ያደርገዋል ይህም ከገደቡ በላይ ነው።",
+            successMsg: "🎉 እንኳን ደስ አለዎት! ስራው በተሳካ ሁኔታ ለአበበ ተሰጥቷል። አሁን አጠቃላይ ጫናው 75 ነጥብ (ጤናማ) ነው።",
         },
-        slide3: {
-            badge: "ክፍል 3፡ ደንበኞችን መመዝገብ",
-            title: "ደንበኞችን በቀላሉ መመዝገብ",
-            subtitle: "አዲስ ደንበኛ በሲስተሙ ላይ ሲመዘግቡ፣ የታክስ ስሌቶች እና የስራ ዝርዝሮች እንዴት መፈጠር እንዳለባቸው የሚወስኑ ቅንብሮችን ያስቀምጣሉ፡",
-            p1: "📌 የግብር ከፋይ ቁጥር (TIN): ለመንግስት ታክስ ሪፖርት የሚጠቅም ባለ 10 አሃዝ የግብር ከፋይ መለያ መመዝገብ።",
-            p2: "🏢 የህግ መዋቅር፡ ደንበኛውን እንደ PLC፣ የግል ድርጅት፣ ወዘተ. መመዝገብ ይህም የታክስ ፎርማቶችን በራሱ ይወስናል።",
-            p3: "💳 የባንክ አካውንት ማያያዝ፡ ወርሃዊ ሂሳቦችን በቀላሉ ለማስታረቅ የድርጅቱን የባንክ ሂሳቦች ማገናኘት።"
+        lab2: {
+            guideTitle: "ላብ 2: የሰነዶች ማስቀመጫ ካርታ",
+            intro: "የደንበኞች አካላዊ ወረቀቶች የተቀመጡበትን ቦታ (Cabinet እና Shelf) መመዝገብ አለብን። ካቢኔዎቹ በፊደል ተከፋፍለዋል፡ ካቢኔ 1 (A-G)፣ ካቢኔ 2 (H-N)፣ እና ካቢኔ 3 (O-Z)።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. 'Nile Import-Export' የሚል የደንበኛ ወረቀት ፋይል አለዎት።",
+            inst2: "2. 'Nile' በሚለው ስም መሰረት የሚገባበትን ትክክለኛ ካቢኔ ይለዩ።",
+            inst3: "3. በቅጹ ላይ ካቢኔውን እና መደርደሪያውን መርጠው 'የማህደር ቦታ መዝግብ' የሚለውን ይጫኑ።",
+            panelTitle: "የማህደር ሰነድ ምዝገባ ቅጽ",
+            cabinetLabel: "ካቢኔ ይምረጡ:",
+            shelfLabel: "የመደርደሪያ ቦታ (Shelf) ይምረጡ:",
+            submitBtn: "የማህደር ቦታ መዝግብ",
+            successMsg: "🎉 እንኳን ደስ አለዎት! የNile ሰነድ በካቢኔ 2 (H-N) መደርደሪያ B-3 ላይ ተመዝግቧል።",
         },
-        slide4: {
-            badge: "ክፍል 4፡ ስራ ማደላደያ ሰሌዳ",
-            title: "ስራዎችን በፍትሃዊነት ማደላደል",
-            subtitle: "ሰራተኞቻችን በስራ ብዛት እንዳይጨናነቁ እና ስራዎች እንዳይበላሹ ጂጂኤኤ የስራ ጫና መፈተሻ ዘዴ ይጠቀማል።",
-            boxTitle: "እራስዎ ይሞክሩት፡ በይነተገናኝ ስራ ማደላደያ",
-            boxSub: "አዲስ ደንበኛ ሸገር ኃ/የተ/የግ/ማ (የስራ ክብደት፡ 25 ነጥብ) መጥቷል። ይህንን ስራ ለማን ማደላደል ይፈልጋሉ፡",
-            assignA: "ስራውን ለአበበ ስጥ",
-            assignL: "ስራውን ለሊዲያ ስጥ",
-            aInitial: "አበበ (ሲኒየር) — አሁን ያለበት ጫና፡ 50 / 80 ነጥብ",
-            lInitial: "ሊዲያ (ጁኒየር) — አሁን ያለባት ጫና፡ 65 / 80 ነጥብ",
-            aFinal: "አበበ — አዲስ የስራ ጫና፡ 75 / 80 ነጥብ (93% - ስራ በዝቷል ግን ጤናማ ነው)",
-            lFinal: "ሊዲያ — አዲስ የስራ ጫና፡ 90 / 80 ነጥብ (112% - ከአቅም በላይ ተጭናለች!)",
-            successMsg: "✅ ስራው በተሳካ ሁኔታ ለአበበ ተሰጥቷል! አበበ በስራ ቢጠመድም ሊያጠናቅቀው ይችላል።",
-            errorMsg: "❌ ስራ ማደላደል አልተቻለም! ይህንን ስራ ለሊዲያ መስጠት ከእሷ ከፍተኛ የጫና ገደብ (80 ነጥብ) በላይ ያደርጋታል።",
-            resetBtn: "🔄 ድጋሚ አስጀምር"
+        lab3: {
+            guideTitle: "ላብ 3: ወርሃዊ ሂሳብ ማረጋገጥና መቆለፍ",
+            intro: "አካውንታንቶች ወርሃዊ ሂሳብ ሲያጠናቅቁ ማናጀሩ ማጽደቅ አለበት። በደረሰኝ ሽያጭ እና ማሽን ሪፖርት መካከል ልዩነት ካዩ ሂሳቡን ውድቅ በማድረግ ማሳረም አለብዎት። ከተስተካከለ በኋላ ሂሳቡን መቆለፍ አለብዎት።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. በቀኝ በኩል የቀረበውን የ'Abay Trading' ሂሳብ ይመልከቱ።",
+            inst2: "2. በማሽኑ እና በደረሰኝ መካከል ስህተት ስላለ 'ሂሳቡን ውድቅ አድርግ' የሚለውን ይጫኑ።",
+            inst3: "3. አካውንታንቱ አስተካክሎ እስኪመልስ ይጠብቁ፣ ከዚያ 'የመቆለፊያ መክፈቻ' ማብሪያውን ያብሩ።",
+            panelTitle: "የ Abay Trading ወርሃዊ ሂሳብ ግምገማ",
+            salesLabel: "በደረሰኝ የተመዘገበ ሽያጭ:",
+            zReportLabel: "የማሽን ሪፖርት (Z-Report):",
+            warningAlert: "⚠️ የሽያጭ ልዩነት አለ! በደረሰኝ እና በማሽን መካከል የ2,000 ብር ልዩነት ታይቷል።",
+            rejectBtn: "ሂሳቡን ውድቅ አድርግና መልስ",
+            waitMsg: "⏳ አካውንታንቱ ስህተቱን እያስተካከለ ነው...",
+            correctedMsg: "✅ ስህተቱ ተስተካክሏል! ሽያጩ ወደ 242,000.00 ብር ተስተካክሏል። ለመቆለፍ ዝግጁ ነው።",
+            lockSwitchLabel: "የመቆለፊያ ሁነታ",
+            lockedBadge: "ሂሳቡ ጸድቆ በደህንነት ተቆልፏል",
+            unlockedBadge: "መቆለፊያ ተከፍቷል (በግምገማ ላይ)",
+            switchDesc: "ለደንበኛው እንዲታይ የጸደቀውን ሂሳብ ለመቆለፍ ማብሪያውን ይጫኑ።",
+            successMsg: "🎉 እንኳን ደስ አለዎት! ሂሳቡ ተገምግሞ፣ ስህተቱ ታርሞ፣ እና በደህንነት ተቆልፏል። አሁን ለደንበኛው በፖርታሉ ላይ ይታያል።",
         },
-        slide5: {
-            badge: "ክፍል 5፡ ወረቀትና ዲጂታል ማህደር",
-            title: "የዲጂታል እና አካላዊ ሰነዶች ማህደር",
-            subtitle: "የደንበኞች ሰነዶች በፍጹም እንዳይጠፉ ዲጂታል ፋይሎችን እና አካላዊ ወረቀቶችን አጣምረን እንይዛለን።",
-            p1: "📁 ዲጂታል ፋይሎች፡ የTIN ሰነዶች፣ የንግድ ፈቃዶች እና የታክስ መግለጫዎች ደህንነቱ በተጠበቀ የደመና ማከማቻ ውስጥ ይቀመጣሉ።",
-            p2: "🗄️ አካላዊ ሰነዶች፡ ወረቀቶቹ የተቀመጡበትን ትክክለኛ የካቢኔ መደርደሪያ (Shelf) እና የሴክሽን ቦታ በመመዝገብ በ60 ሰከንድ ውስጥ ማግኘት እንዲቻል እናደርጋለን።"
-        },
-        slide6: {
-            badge: "ክፍል 6፡ የስራ ናሙናዎች",
-            title: "አውቶማቲክ የስራ ዝርዝሮችን መፍጠር",
-            subtitle: "በየወሩ አዲስ የስራ ዝርዝር እራስዎ መፍጠር አይጠበቅብዎትም። አስተዳዳሪዎች አንድ ጊዜ የስራ ዝርዝር ናሙና ከፈጠሩ በኋላ ሲስተሙ እራሱ ስራዎችን ያመነጫል።",
-            p1: "📅 የቀነ-ገደብ ስሌት፡ ከወሩ መጨረሻ ጀምሮ የቀናት ልዩነትን በመውሰድ የቀነ-ገደብ ቀንን በራሱ ያሰላል (ለምሳሌ ከወር መጨረሻ 10 ቀን ልዩነት)።",
-            p2: "🔧 አውቶማቲክ ስራዎች፡ ደንበኞች ለታክስ ወይም ለሂሳብ አያያዝ አገልግሎት ሲመዘገቡ ስራዎች በራሳቸው ይፈጠራሉ።"
-        },
-        slide7: {
-            badge: "ክፍል 7፡ ደህንነት እና ገደቦች",
-            title: "የተገደበ መረጃ ደህንነት",
-            subtitle: "ሲስተሙ የደንበኞችን መረጃ ደህንነት ለመጠበቅ እርስዎ እራስዎ መቆጣጠር ሳይጠበቅብዎት መረጃዎችን በራስ-ሰር ይገድባል።",
-            p1: "🔒 የቅርንጫፍ ማናጀሮች፡ ማየት የሚችሉት በራሳቸው ቅርንጫፍ ስር ያሉ ደንበኞችን እና ፋይሎችን ብቻ ነው።",
-            p2: "🔒 አካውንታንቶች፡ ማየት የሚችሉት ለእነሱ በግል የተሰጡ ደንበኞችን ብቻ ነው።",
-            p3: "🔒 ደንበኞች፡ ማየት የሚችሉት የራሳቸውን የጸደቁ ሂሳቦች እና የክፍያ ሰነዶች ብቻ ነው።"
-        },
-        slide8: {
-            badge: "ክፍል 8፡ የሂሳብ መቆለፊያ",
-            title: "ወርሃዊ ሂሳቦችን መገምገም እና ማጽደቅ",
-            subtitle: "አካውንታንቶች ወርሃዊ ሂሳቦችን ሲያጠናቅቁ ለግምገማ ይልኩልዎታል። ማናጀሮች ሂሳቦቹን ፈትሸው ያጸድቃሉ::",
-            p1: "👁️ የማጽደቅ መቆለፊያ፡ ሂሳቡ ከጸደቀ በኋላ በራሱ ይቆለፋል። ደንበኞች ማየት የሚችሉት የጸደቁትን መዛግብቶች ብቻ ነው።",
-            p2: "🔑 መቆለፊያ መክፈቻ፡ ደንበኛው ማስተካከያ ከጠየቀ፣ ማናጀሩ ይህንን ማብሪያ/ማጥፊያ በመጫን ሂሳቡን ለአካውንታንቱ መልሶ መክፈት ይችላል።",
-            boxTitle: "እራስዎ ይሞክሩት፡ መቆለፊያ ማብሪያ/ማጥፊያ",
-            indicatorL: "መቆለፊያ ተከፍቷል (ለማስተካከያ ዝግጁ)",
-            indicatorV: "ጸድቋል (በደህንነት ተቆልፏል)",
-            toggleLabel: "የመቆለፊያ መክፈቻ ሁነታ",
-            toggleDesc: "የጸደቀውን ሂሳብ ለማስተካከያ መልሶ ይከፍታል",
-            widgetTip: "💡 የመቆለፊያውን አሰራር ለመረዳት ከላይ ያለውን ማብሪያ/ማጥፊያ ይጫኑ!"
-        },
-        slide9: {
-            badge: "ክፍል 9፡ ማጠቃለያ",
-            title: "የማናጀሮች እለታዊ የስራ ዝርዝር",
-            subtitle: "ቅርንጫፍዎ በታላቅ አፈጻጸም እንዲመራ በየቀኑ ይህንን ቀላል የስራ ዝርዝር ይመልከቱ፡"
+        graduation: {
+            title: "እንኳን ደስ አለዎት፣ ቅርንጫፍ ማናጀር!",
+            subtitle: "ሁሉንም 3 የማናጀር ቁጥጥር ላብራቶሪዎችን በተሳካ ሁኔታ አጠናቀዋል።",
+            badgeLabel: "ያገኙት የክብር ባጅ:",
+            badgeTitle: "🛡️ አስተማማኝ ማናጀር",
+            badgeDesc: "ቅርንጫፉን 100% በታማኝነት እና በተገዢነት የመራ።",
+            certTitle: "የቅርንጫፍ ስራዎች ማናጀር ሰርተፊኬት",
+            certSubtitle: "ጂጂኤኤ ሲስተምስ የአመራር አካዳሚ",
+            certBody: "ይህ ሰርተፊኬት ባለቤቱ የማናጀር ብቃት መፈተሻ ማስመሰያዎችን ማለፉን፣ በስራ ድልድል፣ በፊደል ቅደም ተከተል ማህደር እና በኦዲት መዛግብት ማረጋገጥ ላይ ሙሉ ብቃት ማሳየቱን ያረጋግጣል።",
+            certDate: "የተሰጠበት ቀን: ሰኔ 2026",
+            certNameLabel: "በሰርተፊኬቱ ላይ ያለውን ስም ይቀይሩ:",
+            homeBtn: "ወደ ስልጠናዎች ማእከል ተመለስ",
         }
     }
 };
 </script>
 
 <template>
-    <Head :title="`${slides[locale].slide1.title} - GGAA Systems`" />
+    <Head :title="`${content[locale].headerTitle} - GGAA Systems`" />
 
     <div class="min-h-screen font-sans flex flex-col justify-between overflow-x-hidden transition-colors duration-300 selection:bg-blue-600 selection:text-white"
          :class="isDark ? 'bg-[#060a12] text-slate-100' : 'bg-slate-50 text-slate-800'"
     >
-        
+        <!-- Background Blur Particles -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] blur-[150px] rounded-full transition-opacity duration-300"
+                 :class="isDark ? 'bg-blue-600/10 opacity-100' : 'bg-blue-500/5 opacity-40'"></div>
+            <div class="absolute bottom-[10%] right-[10%] w-[35%] h-[35%] blur-[150px] rounded-full transition-opacity duration-300"
+                 :class="isDark ? 'bg-indigo-600/10 opacity-100' : 'bg-indigo-500/5 opacity-40'"></div>
+        </div>
+
         <!-- Top Navigation Bar -->
         <header class="w-full py-4 px-6 lg:px-12 flex justify-between items-center border-b backdrop-blur-md sticky top-0 z-50 transition-colors"
-                :class="isDark ? 'border-slate-800 bg-[#060a12]/80' : 'border-slate-200 bg-white/80'"
+                :class="isDark ? 'border-slate-850 bg-[#060a12]/80' : 'border-slate-200 bg-white/80'"
         >
             <Link href="/training" class="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-blue-500 transition-colors group">
                 <ArrowLeftIcon class="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-                {{ locale === 'en' ? 'Back to Tracks' : 'ወደ ስልጠናዎች ተመለስ' }}
+                {{ content[locale].backBtn }}
             </Link>
             
             <div class="flex items-center gap-3">
@@ -262,8 +297,12 @@ const slides = {
                     M
                 </div>
                 <div>
-                    <span class="text-base font-black tracking-wider uppercase font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">GGAA <span class="text-blue-500">Systems</span></span>
-                    <span class="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">{{ locale === 'en' ? 'Admin & Manager Control Course' : 'የአስተዳዳሪዎች ማሰልጠኛ' }}</span>
+                    <span class="text-base font-black tracking-wider uppercase font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">
+                        GGAA <span class="text-blue-500">Systems</span>
+                    </span>
+                    <span class="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                        {{ content[locale].headerSubtitle }}
+                    </span>
                 </div>
             </div>
             
@@ -286,486 +325,454 @@ const slides = {
             </div>
         </header>
 
-        <!-- Slides Container (Smoother, larger fonts, conversational) -->
-        <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-8 flex items-center justify-center relative">
-            <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] blur-[150px] rounded-full pointer-events-none transition-opacity duration-300"
-                 :class="[isDark ? 'bg-blue-500/10 opacity-100' : 'bg-blue-500/5 opacity-40']"></div>
-            <div class="absolute bottom-[10%] right-[10%] w-[35%] h-[35%] blur-[150px] rounded-full pointer-events-none transition-opacity duration-300"
-                 :class="[isDark ? 'bg-indigo-500/10 opacity-100' : 'bg-indigo-500/5 opacity-40']"></div>
+        <!-- Main Body: Course Curriculum Steps -->
+        <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-6 relative z-10 flex flex-col justify-center">
+            
+            <!-- Step Navigation Tabs -->
+            <div class="flex justify-center flex-wrap gap-2 mb-8 bg-slate-950/20 backdrop-blur-md p-1.5 rounded-2xl border border-slate-500/10 max-w-2xl mx-auto w-full">
+                <button v-for="(stepName, index) in content[locale].stepNames" :key="index"
+                        @click="index <= 3 || lab3Passed ? currentStep = index : null"
+                        class="px-4 py-2 text-xs font-bold font-outfit rounded-xl transition-all flex items-center gap-1.5"
+                        :class="[
+                            currentStep === index 
+                                ? 'bg-blue-650 text-white shadow-md' 
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-550/5',
+                            (index > 0 && index <= 3 && !lab3Passed && index > currentStep + 1) ? 'opacity-40 cursor-not-allowed' : ''
+                        ]"
+                >
+                    <span class="h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black border"
+                          :class="currentStep >= index ? 'border-white text-white' : 'border-slate-500 text-slate-500'"
+                    >
+                        {{ index + 1 }}
+                    </span>
+                    {{ stepName }}
+                </button>
+            </div>
 
-            <!-- SLIDE 1: WELCOME & TITLE -->
-            <div v-if="currentSlide === 1" class="w-full flex flex-col items-center justify-center text-center py-12 relative z-10 space-y-6 max-w-3xl animate-fade-in">
+            <!-- STEP 0: OVERVIEW -->
+            <div v-if="currentStep === 0" class="max-w-3xl mx-auto text-center space-y-6 py-12 animate-fade-in">
                 <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-400 text-xs font-black uppercase tracking-widest border border-blue-500/20">
-                    <span class="h-2 w-2 rounded-full bg-blue-400 animate-ping"></span>
-                    {{ slides[locale].slide1.badge }}
+                    <AcademicCapIcon class="h-5 w-5" />
+                    {{ locale === 'en' ? 'Track 2: Managers & Branch Leadership Operations' : 'ክፍል 2፡ የአስተዳዳሪዎችና የቅርንጫፍ ማናጀሮች ስልጠና' }}
                 </span>
                 
-                <h1 class="text-5xl lg:text-7xl font-black font-outfit tracking-tighter leading-tight"
+                <h1 class="text-4xl sm:text-6xl font-black font-outfit tracking-tighter leading-tight"
                     :class="isDark ? 'text-white' : 'text-slate-950'"
                 >
-                    {{ slides[locale].slide1.title }}
+                    {{ content[locale].overview.title }}
                 </h1>
                 
-                <p class="text-xl md:text-2xl font-medium max-w-2xl mx-auto leading-relaxed"
-                   :class="isDark ? 'text-slate-300' : 'text-slate-650'"
-                >
-                    {{ slides[locale].slide1.subtitle }}
+                <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-300' : 'text-slate-650'">
+                    {{ content[locale].overview.desc1 }}
+                </p>
+                <p class="text-base leading-relaxed font-medium" :class="isDark ? 'text-slate-450' : 'text-slate-550'">
+                    {{ content[locale].overview.desc2 }}
                 </p>
 
-                <div class="pt-8 flex justify-center gap-4">
-                    <button @click="nextSlide" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm uppercase tracking-wider font-outfit">
-                        {{ locale === 'en' ? 'Get Started' : 'ጀምር' }}
+                <div class="pt-6">
+                    <button @click="currentStep = 1" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm uppercase tracking-wider font-outfit mx-auto">
+                        {{ content[locale].overview.startBtn }}
                         <ChevronRightIcon class="h-4 w-4" />
                     </button>
                 </div>
             </div>
 
-            <!-- SLIDE 2: THE ADMIN DASHBOARD OVERVIEW -->
-            <div v-if="currentSlide === 2" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide2.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-955'">
-                        {{ slides[locale].slide2.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-600'">
-                        {{ slides[locale].slide2.subtitle }}
-                    </p>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="p-4 rounded-2xl border transition-all"
-                             :class="isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'"
-                        >
-                            <span class="text-xs text-blue-500 font-bold uppercase tracking-wider">{{ slides[locale].slide2.metric1 }}</span>
-                            <h4 class="text-2xl font-black font-outfit mt-1" :class="isDark ? 'text-white' : 'text-slate-900'">94.8%</h4>
-                            <p class="text-[11px] mt-1" :class="isDark ? 'text-slate-400' : 'text-slate-500'">{{ slides[locale].slide2.metric1Desc }}</p>
-                        </div>
-
-                        <div class="p-4 rounded-2xl border transition-all"
-                             :class="isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'"
-                        >
-                            <span class="text-xs text-blue-500 font-bold uppercase tracking-wider">{{ slides[locale].slide2.metric2 }}</span>
-                            <h4 class="text-2xl font-black font-outfit mt-1" :class="isDark ? 'text-white' : 'text-slate-900'">89.2%</h4>
-                            <p class="text-[11px] mt-1" :class="isDark ? 'text-slate-400' : 'text-slate-500'">{{ slides[locale].slide2.metric2Desc }}</p>
-                        </div>
-                    </div>
-                </div>
+            <!-- SPLIT SCREEN LAYOUT FOR LABS (1, 2, 3) -->
+            <div v-if="currentStep > 0 && currentStep < 4" class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch py-2 min-h-[500px]">
                 
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[32px] p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-250 text-slate-700 shadow-lg'"
-                    >
-                        <h4 class="text-xs font-black uppercase tracking-widest block pb-2 border-b"
-                            :class="isDark ? 'text-slate-400 border-slate-800' : 'text-slate-950 border-slate-200'"
+                <!-- LEFT SIDE: LAB GUIDE & STATUS -->
+                <div class="flex flex-col justify-between space-y-6 rounded-[32px] p-6 lg:p-8 border backdrop-blur-md"
+                     :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-lg'"
+                >
+                    <div class="space-y-4">
+                        <span class="text-xs font-black uppercase text-blue-400 tracking-widest block font-outfit">
+                            {{ locale === 'en' ? `Lab Exercise ${currentStep} of 3` : `ተግባራዊ ልምምድ ${currentStep} ከ 3` }}
+                        </span>
+                        
+                        <h2 class="text-2xl lg:text-3xl font-black font-outfit tracking-tight"
+                            :class="isDark ? 'text-white' : 'text-slate-900'"
                         >
-                            {{ slides[locale].slide2.panelTitle }}
-                        </h4>
+                            {{ content[locale][`lab${currentStep}`].guideTitle }}
+                        </h2>
                         
-                        <div class="space-y-3 text-xs">
-                            <div class="flex justify-between items-center p-3 rounded-xl border" :class="isDark ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-200'">
-                                <span>{{ slides[locale].slide2.item1 }}</span>
-                                <span class="font-bold text-sm" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide2.activeText }}</span>
-                            </div>
-                            
-                            <div class="flex justify-between items-center p-3 rounded-xl border" :class="isDark ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-200'">
-                                <span>{{ slides[locale].slide2.item2 }}</span>
-                                <span class="font-bold text-sm text-blue-500">{{ slides[locale].slide2.capacityText }}</span>
-                            </div>
-
-                            <div class="flex justify-between items-center p-3 rounded-xl border" :class="isDark ? 'bg-slate-900/40 border-slate-850' : 'bg-slate-50 border-slate-200'">
-                                <span>{{ slides[locale].slide2.item3 }}</span>
-                                <span class="font-bold text-sm text-amber-500">{{ slides[locale].slide2.auditsText }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 3: CLIENT ONBOARDING & PROFILES -->
-            <div v-if="currentSlide === 3" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide3.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide3.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide3.subtitle }}
-                    </p>
-
-                    <div class="space-y-4 text-sm" :class="isDark ? 'text-slate-300' : 'text-slate-700'">
-                        <p class="font-medium">{{ slides[locale].slide3.p1 }}</p>
-                        <p class="font-medium">{{ slides[locale].slide3.p2 }}</p>
-                        <p class="font-medium">{{ slides[locale].slide3.p3 }}</p>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[32px] p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-250'"
-                    >
-                        <div class="flex justify-between items-center border-b pb-2.5" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
-                            <span class="text-[10px] bg-blue-500/10 text-blue-400 font-bold px-2.5 py-0.5 rounded uppercase">{{ slides[locale].slide3.badge }}</span>
-                            <span class="text-xs" :class="isDark ? 'text-slate-450' : 'text-slate-500'">ID: #C-9024</span>
-                        </div>
-
-                        <div class="space-y-3.5 text-xs">
-                            <div>
-                                <span class="text-[10px] text-slate-500 block uppercase">{{ locale === 'en' ? 'Company Name' : 'የድርጅት ስም' }}</span>
-                                <span class="font-black text-lg" :class="isDark ? 'text-white' : 'text-slate-900'">Sheger Foods PLC</span>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <span class="text-[10px] text-slate-500 block uppercase">TIN Number</span>
-                                    <span class="font-bold text-sm" :class="isDark ? 'text-white' : 'text-slate-800'">0048291039</span>
-                                </div>
-                                <div>
-                                    <span class="text-[10px] text-slate-500 block uppercase">Legal Structure</span>
-                                    <span class="font-bold text-sm" :class="isDark ? 'text-white' : 'text-slate-800'">PLC</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 4: WORKLOAD CAPACITY BALANCING (Highly Interactive drag-and-drop/click simulation) -->
-            <div v-if="currentSlide === 4" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide4.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide4.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide4.subtitle }}
-                    </p>
-
-                    <!-- Workload Allocator Control -->
-                    <div class="p-6 rounded-[28px] border space-y-4"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-md'"
-                    >
-                        <h4 class="text-sm font-black uppercase tracking-wider text-slate-500">
-                            {{ slides[locale].slide4.boxSub }}
-                        </h4>
+                        <p class="text-sm font-medium leading-relaxed" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
+                            {{ content[locale][`lab${currentStep}`].intro }}
+                        </p>
                         
-                        <div class="flex flex-col sm:flex-row gap-3 pt-2">
-                            <button @click="assignTarget = 'abebe'" 
-                                    class="flex-1 py-3 px-4 font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
-                                    :class="assignTarget === 'abebe' 
-                                        ? 'bg-blue-600 text-white shadow-md' 
-                                        : 'bg-slate-500/10 text-slate-400 hover:bg-slate-500/20'"
+                        <!-- Objective panel -->
+                        <div class="p-5 rounded-2xl space-y-2.5" :class="isDark ? 'bg-slate-950/40 border border-slate-850' : 'bg-slate-50 border border-slate-200'">
+                            <h4 class="text-xs font-black uppercase tracking-wider" :class="isDark ? 'text-slate-400' : 'text-slate-700'">
+                                {{ content[locale][`lab${currentStep}`].instructionTitle }}
+                            </h4>
+                            <ul class="space-y-2 text-xs font-semibold leading-relaxed" :class="isDark ? 'text-slate-400' : 'text-slate-600'">
+                                <li>{{ content[locale][`lab${currentStep}`].inst1 }}</li>
+                                <li>{{ content[locale][`lab${currentStep}`].inst2 }}</li>
+                                <li>{{ content[locale][`lab${currentStep}`].inst3 }}</li>
+                            </ul>
+                        </div>
+
+                        <!-- LAB 2 DATA FORM -->
+                        <div v-if="currentStep === 2" class="space-y-3 pt-2">
+                            <div class="space-y-1">
+                                <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].lab2.cabinetLabel }}</label>
+                                <select v-model="selectedCabinet" 
+                                        class="w-full bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold text-sm outline-none transition-all"
+                                        :class="isDark ? 'border-slate-800 text-white focus:border-blue-500' : 'border-slate-250 text-slate-900 focus:border-blue-500'"
+                                        :disabled="lab2Passed"
+                                >
+                                    <option value="" disabled>{{ locale === 'en' ? 'Select Cabinet' : 'ካቢኔ ይምረጡ' }}</option>
+                                    <option value="Cabinet 1">Cabinet 1 (Alphabetical: A-G)</option>
+                                    <option value="Cabinet 2">Cabinet 2 (Alphabetical: H-N)</option>
+                                    <option value="Cabinet 3">Cabinet 3 (Alphabetical: O-Z)</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].lab2.shelfLabel }}</label>
+                                <select v-model="selectedShelf" 
+                                        class="w-full bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold text-sm outline-none transition-all"
+                                        :class="isDark ? 'border-slate-800 text-white focus:border-blue-500' : 'border-slate-250 text-slate-900 focus:border-blue-500'"
+                                        :disabled="lab2Passed"
+                                >
+                                    <option value="" disabled>{{ locale === 'en' ? 'Select Shelf Coordinates' : 'የመደርደሪያ ቦታ ይምረጡ' }}</option>
+                                    <option value="Shelf B-1">Shelf B-1</option>
+                                    <option value="Shelf B-2">Shelf B-2</option>
+                                    <option value="Shelf B-3">Shelf B-3</option>
+                                    <option value="Shelf B-4">Shelf B-4</option>
+                                </select>
+                            </div>
+                            <button v-if="!lab2Passed" @click="recordArchive" 
+                                    class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
                             >
-                                {{ slides[locale].slide4.assignA }}
+                                {{ content[locale].lab2.submitBtn }}
                             </button>
-                            <button @click="assignTarget = 'lydia'" 
-                                    class="flex-1 py-3 px-4 font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
-                                    :class="assignTarget === 'lydia' 
-                                        ? 'bg-rose-600 text-white shadow-md' 
-                                        : 'bg-slate-500/10 text-slate-400 hover:bg-slate-500/20'"
+                            <p v-if="lab2Error" class="text-xs font-bold text-rose-500">{{ lab2Error }}</p>
+                        </div>
+                    </div>
+
+                    <!-- SUCCESS DIALOG & PROGRESS BUTTON -->
+                    <div class="pt-4 border-t" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                        <div v-if="(currentStep === 1 && lab1Passed) || (currentStep === 2 && lab2Passed) || (currentStep === 3 && lab3Passed)" 
+                             class="p-4 mb-4 rounded-2xl border text-xs font-bold text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+                        >
+                            {{ content[locale][`lab${currentStep}`].successMsg }}
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <button @click="currentStep--" 
+                                    class="px-4 py-2.5 rounded-xl border text-xs font-bold uppercase transition-all"
+                                    :class="isDark ? 'border-slate-800 text-slate-400 hover:bg-slate-900' : 'border-slate-250 text-slate-600 hover:bg-slate-100'"
                             >
-                                {{ slides[locale].slide4.assignL }}
+                                {{ locale === 'en' ? 'Back' : 'ተመለስ' }}
+                            </button>
+                            
+                            <button @click="currentStep++" 
+                                    :disabled="!(currentStep === 1 ? lab1Passed : currentStep === 2 ? lab2Passed : lab3Passed)"
+                                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
+                            >
+                                {{ locale === 'en' ? 'Next Lab' : 'ቀጣይ ላብ' }}
+                                <ChevronRightIcon class="h-3.5 w-3.5" />
                             </button>
                         </div>
-
-                        <button v-if="assignTarget" @click="assignTarget = ''" 
-                                class="w-full text-center text-xs font-bold text-slate-400 hover:text-white underline pt-1 block"
-                        >
-                            {{ slides[locale].slide4.resetBtn }}
-                        </button>
                     </div>
                 </div>
 
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <!-- Interactive allocation console mock-up -->
-                    <div class="w-full max-w-sm rounded-[36px] p-6 border space-y-5 shadow-2xl transition-all"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-250'"
-                    >
-                        <h4 class="text-sm font-black uppercase text-center" :class="isDark ? 'text-slate-300' : 'text-slate-950'">
-                            {{ slides[locale].slide4.boxTitle }}
-                        </h4>
+                <!-- RIGHT SIDE: SIMULATED OPERATIONS SANDBOX -->
+                <div class="rounded-[32px] p-6 lg:p-8 border flex flex-col justify-center relative overflow-hidden animate-fade-in"
+                     :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-250 shadow-md'"
+                >
+                    
+                    <!-- LAB 1 SANDBOX: CAPACITY ASSIGNER -->
+                    <div v-if="currentStep === 1" class="space-y-6 w-full">
+                        <div class="flex justify-between items-center pb-2 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">{{ content[locale].lab1.widgetTitle }}</span>
+                            <span class="text-xs font-bold" :class="isDark ? 'text-slate-450' : 'text-slate-700'">Safe Limit: 80 Pts</span>
+                        </div>
+
+                        <!-- Incoming Client Card -->
+                        <div class="p-4 border border-l-4 border-l-blue-500 rounded-2xl space-y-2 shadow-sm"
+                             :class="isDark ? 'bg-[#101726] border-slate-850' : 'bg-slate-50 border-slate-200'"
+                        >
+                            <h4 class="text-sm font-black" :class="isDark ? 'text-white' : 'text-slate-900'">
+                                {{ content[locale].lab1.clientCard }}
+                            </h4>
+                        </div>
 
                         <!-- Staff 1 Abebe -->
-                        <div class="space-y-2 text-xs">
-                            <div class="flex justify-between items-end font-bold">
-                                <span :class="isDark ? 'text-slate-200' : 'text-slate-800'">Abebe (Senior)</span>
-                                <span :class="assignTarget === 'abebe' ? 'text-amber-500 font-black' : 'text-blue-500'">
-                                    {{ assignTarget === 'abebe' ? slides[locale].slide4.aFinal : slides[locale].slide4.aInitial }}
+                        <div class="p-4 border rounded-2xl space-y-3" :class="isDark ? 'bg-slate-950/20 border-slate-850' : 'bg-slate-50 border-slate-200'">
+                            <div class="flex justify-between text-xs font-bold">
+                                <span :class="isDark ? 'text-slate-350' : 'text-slate-700'">Abebe (Senior Accountant)</span>
+                                <span :class="assignTarget === 'abebe' ? 'text-blue-500 font-extrabold' : 'text-slate-550'">
+                                    {{ assignTarget === 'abebe' ? '75 / 80 Pts' : '50 / 80 Pts' }}
                                 </span>
                             </div>
-                            <div class="w-full bg-slate-500/15 rounded-full h-3 overflow-hidden p-0.5 border" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
-                                <div class="h-full rounded-full transition-all duration-500 bg-blue-500" 
-                                     :style="`width: ${assignTarget === 'abebe' ? 93 : 62}%`"
-                                ></div>
+                            <div class="w-full bg-slate-500/15 rounded-full h-2.5 overflow-hidden border" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                                <div class="h-full bg-blue-500 rounded-full transition-all duration-500" :style="`width: ${assignTarget === 'abebe' ? 93 : 62}%`"></div>
                             </div>
+                            <button v-if="assignTarget !== 'abebe'" @click="assignTarget = 'abebe'" 
+                                    class="py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                            >
+                                {{ content[locale].lab1.assignABtn }}
+                            </button>
                         </div>
 
                         <!-- Staff 2 Lydia -->
-                        <div class="space-y-2 text-xs">
-                            <div class="flex justify-between items-end font-bold">
-                                <span :class="isDark ? 'text-slate-200' : 'text-slate-800'">Lydia (Junior)</span>
-                                <span :class="assignTarget === 'lydia' ? 'text-rose-500 font-black' : 'text-emerald-500'">
-                                    {{ assignTarget === 'lydia' ? slides[locale].slide4.lFinal : slides[locale].slide4.lInitial }}
+                        <div class="p-4 border rounded-2xl space-y-3" :class="isDark ? 'bg-slate-950/20 border-slate-850' : 'bg-slate-50 border-slate-200'">
+                            <div class="flex justify-between text-xs font-bold">
+                                <span :class="isDark ? 'text-slate-350' : 'text-slate-700'">Lydia (Junior Accountant)</span>
+                                <span :class="assignTarget === 'lydia' ? 'text-rose-500 font-extrabold' : 'text-slate-550'">
+                                    {{ assignTarget === 'lydia' ? '90 / 80 Pts' : '65 / 80 Pts' }}
                                 </span>
                             </div>
-                            <div class="w-full bg-slate-500/15 rounded-full h-3 overflow-hidden p-0.5 border" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
-                                <div class="h-full rounded-full transition-all duration-500 bg-emerald-500"
-                                     :class="assignTarget === 'lydia' && 'bg-rose-500'"
+                            <div class="w-full bg-slate-500/15 rounded-full h-2.5 overflow-hidden border" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                                     :class="assignTarget === 'lydia' && 'bg-rose-500'" 
                                      :style="`width: ${assignTarget === 'lydia' ? 100 : 81}%`"
                                 ></div>
                             </div>
-                        </div>
-
-                        <!-- Allocation Feedback box -->
-                        <div v-if="assignTarget" class="p-4 rounded-2xl text-xs font-bold transition-all duration-300"
-                             :class="[
-                                 assignTarget === 'abebe' 
-                                     ? (isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-100 text-amber-800 border-amber-250') 
-                                     : (isDark ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20 animate-bounce' : 'bg-rose-100 text-rose-800 border border-rose-250 animate-bounce')
-                             ]"
-                        >
-                            {{ assignTarget === 'abebe' ? slides[locale].slide4.successMsg : slides[locale].slide4.errorMsg }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 5: DIGITAL & PHYSICAL VAULTS -->
-            <div v-if="currentSlide === 5" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide5.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-955'">
-                        {{ slides[locale].slide5.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-600'">
-                        {{ slides[locale].slide5.subtitle }}
-                    </p>
-
-                    <div class="space-y-4">
-                        <div class="flex gap-4 p-4 rounded-2xl" :class="isDark ? 'bg-slate-900/40 border border-slate-800' : 'bg-white border shadow-sm'">
-                            <span class="text-2xl shrink-0">📁</span>
-                            <div>
-                                <h5 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide5.p1 }}</h5>
-                            </div>
-                        </div>
-                        
-                        <div class="flex gap-4 p-4 rounded-2xl" :class="isDark ? 'bg-slate-900/40 border border-slate-800' : 'bg-white border shadow-sm'">
-                            <span class="text-2xl shrink-0">🗄️</span>
-                            <div>
-                                <h5 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide5.p2 }}</h5>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[32px] p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-250'"
-                    >
-                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">{{ locale === 'en' ? 'Storage Coordinates' : 'የማህደር መረጃ' }}</h4>
-                        
-                        <div class="p-3.5 rounded-2xl border" :class="isDark ? 'bg-slate-900 border-slate-850' : 'bg-slate-50 border-slate-200'">
-                            <span class="text-[9px] text-slate-500 block uppercase">{{ locale === 'en' ? 'Physical Folder Place' : 'የአካላዊ ሰነድ ማስቀመጫ' }}</span>
-                            <div class="grid grid-cols-2 gap-4 text-center mt-2 font-bold">
-                                <div class="p-2 rounded-xl bg-blue-500/10 text-blue-400">
-                                    <span class="text-[8px] block uppercase">Cabinet</span>
-                                    <span class="text-sm">Shelf A</span>
-                                </div>
-                                <div class="p-2 rounded-xl bg-blue-500/10 text-blue-400">
-                                    <span class="text-[8px] block uppercase">Section</span>
-                                    <span class="text-sm">Section 4</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 6: REUSABLE WORKFLOW TEMPLATES -->
-            <div v-if="currentSlide === 6" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide6.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide6.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide6.subtitle }}
-                    </p>
-
-                    <div class="space-y-4 text-sm" :class="isDark ? 'text-slate-300' : 'text-slate-700'">
-                        <p class="font-medium">{{ slides[locale].slide6.p1 }}</p>
-                        <p class="font-medium">{{ slides[locale].slide6.p2 }}</p>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[32px] p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'"
-                    >
-                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">{{ locale === 'en' ? 'Template Sample' : 'የናሙና የስራ ዝርዝር' }}</h4>
-                        
-                        <div class="p-4 rounded-2xl border space-y-2 text-xs" :class="isDark ? 'bg-slate-900 border-slate-850 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'">
-                            <span class="font-black text-sm block" :class="isDark ? 'text-white' : 'text-slate-900'">Monthly VAT Filing</span>
-                            <div class="flex justify-between border-t pt-2" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
-                                <span>Due Offset:</span>
-                                <span class="font-bold">10 Days</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Task Load:</span>
-                                <span class="font-bold text-blue-500">15 Pts</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 7: INVISIBLE SECURITY -->
-            <div v-if="currentSlide === 7" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide7.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide7.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide7.subtitle }}
-                    </p>
-
-                    <div class="space-y-4 text-sm" :class="isDark ? 'text-slate-300' : 'text-slate-700'">
-                        <p class="font-medium">{{ slides[locale].slide7.p1 }}</p>
-                        <p class="font-medium">{{ slides[locale].slide7.p2 }}</p>
-                        <p class="font-medium">{{ slides[locale].slide7.p3 }}</p>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[32px] p-6 border space-y-3.5 shadow-xl text-center text-xs"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'"
-                    >
-                        <h4 class="font-black pb-2 border-b" :class="isDark ? 'text-slate-300 border-slate-800' : 'text-slate-900 border-slate-200'">{{ locale === 'en' ? 'Who Sees What' : 'የመረጃ እይታ ገደብ' }}</h4>
-                        
-                        <div class="p-3 bg-blue-500/10 border border-blue-500/25 text-blue-500 font-bold rounded-2xl">
-                            {{ locale === 'en' ? 'Managers: Only their own branch' : 'ማናጀሮች፡ የራሳቸውን ቅርንጫፍ ብቻ' }}
-                        </div>
-                        <div class="p-3 bg-indigo-500/10 border border-indigo-500/25 text-indigo-500 font-bold rounded-2xl">
-                            {{ locale === 'en' ? 'Accountants: Only assigned clients' : 'አካውንታንቶች፡ ለእነሱ የተሰጡ ደንበኞችን ብቻ' }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 8: LEDGER VERIFICATIONS & AUDITING (Bilingual, clear, visual) -->
-            <div v-if="currentSlide === 8" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide8.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide8.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide8.subtitle }}
-                    </p>
-
-                    <div class="space-y-4 text-sm" :class="isDark ? 'text-slate-300' : 'text-slate-700'">
-                        <p class="font-medium">{{ slides[locale].slide8.p1 }}</p>
-                        <p class="font-medium">{{ slides[locale].slide8.p2 }}</p>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[36px] p-6 border space-y-4 shadow-xl transition-all"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-250'"
-                    >
-                        <div class="flex justify-between items-center pb-2.5 border-b" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
-                            <span class="text-xs font-black" :class="isDark ? 'text-slate-300' : 'text-slate-800'">{{ slides[locale].slide8.boxTitle }}</span>
-                            <span class="px-3 py-1.5 rounded-xl text-xs font-black border transition-all"
-                                  :class="unlockToEdit 
-                                      ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
-                                      : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'"
+                            <button v-if="assignTarget !== 'abebe'" @click="assignTarget = 'lydia'" 
+                                    class="py-1.5 px-3 bg-slate-500/10 hover:bg-slate-500/20 text-slate-400 hover:text-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
                             >
-                                {{ unlockToEdit ? slides[locale].slide8.indicatorL : slides[locale].slide8.indicatorV }}
-                            </span>
+                                {{ content[locale].lab1.assignLBtn }}
+                            </button>
                         </div>
 
-                        <div class="flex justify-between items-center p-4 border rounded-2xl" :class="isDark ? 'bg-slate-900 border-slate-850' : 'bg-slate-50 border-slate-200 shadow-sm'">
-                            <div>
-                                <h5 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide8.toggleLabel }}</h5>
-                                <p class="text-[10px] mt-0.5" :class="isDark ? 'text-slate-500' : 'text-slate-400'">{{ slides[locale].slide8.toggleDesc }}</p>
+                        <!-- Feedback Alerts -->
+                        <div v-if="assignTarget === 'lydia'" class="p-4 rounded-xl text-xs font-bold text-rose-500 bg-rose-500/10 border border-rose-500/20 animate-bounce">
+                            {{ content[locale].lab1.errorMsg }}
+                        </div>
+                        <div v-if="assignTarget === 'abebe'" class="p-4 rounded-xl text-xs font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20">
+                            {{ content[locale].lab1.successMsg }}
+                        </div>
+                    </div>
+
+                    <!-- LAB 2 SANDBOX: ARCHIVING CABINET -->
+                    <div v-if="currentStep === 2" class="space-y-6 w-full text-center">
+                        <span class="h-16 w-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-3xl mx-auto">🗄️</span>
+                        <div>
+                            <span class="text-xs font-black uppercase text-slate-500">{{ locale === 'en' ? 'Target Folder Name' : 'የሚቀመጠው ወረቀት ስም' }}</span>
+                            <h3 class="text-2xl font-black font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">Nile Import-Export</h3>
+                        </div>
+
+                        <!-- Cabinet grid representation -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="p-3 border rounded-xl text-center space-y-1" 
+                                 :class="[
+                                     selectedCabinet === 'Cabinet 1' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-800',
+                                     isDark ? 'bg-slate-950/20' : 'bg-slate-50'
+                                 ]"
+                            >
+                                <span class="text-xs font-bold block">Cabinet 1</span>
+                                <span class="text-[9px] uppercase font-black text-slate-500">Range: A - G</span>
+                            </div>
+                            <div class="p-3 border rounded-xl text-center space-y-1" 
+                                 :class="[
+                                     selectedCabinet === 'Cabinet 2' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-850',
+                                     isDark ? 'bg-slate-950/20' : 'bg-slate-50'
+                                 ]"
+                            >
+                                <span class="text-xs font-bold block" :class="selectedCabinet === 'Cabinet 2' && 'text-blue-400'">Cabinet 2</span>
+                                <span class="text-[9px] uppercase font-black text-slate-500">Range: H - N</span>
+                            </div>
+                            <div class="p-3 border rounded-xl text-center space-y-1" 
+                                 :class="[
+                                     selectedCabinet === 'Cabinet 3' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-800',
+                                     isDark ? 'bg-slate-950/20' : 'bg-slate-50'
+                                 ]"
+                            >
+                                <span class="text-xs font-bold block">Cabinet 3</span>
+                                <span class="text-[9px] uppercase font-black text-slate-500">Range: O - Z</span>
+                            </div>
+                        </div>
+
+                        <div v-if="lab2Passed" class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-black uppercase rounded-xl animate-pulse">
+                            {{ locale === 'en' ? 'Archived coordinate matching Nile!' : 'የማህደር አቀማመጥ ተመዝግቧል!' }}
+                        </div>
+                    </div>
+
+                    <!-- LAB 3 SANDBOX: LEDGER REVIEW & LOCK -->
+                    <div v-if="currentStep === 3" class="space-y-4 w-full">
+                        <div class="flex justify-between items-center pb-2 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">{{ content[locale].lab3.panelTitle }}</span>
+                            <span class="px-2.5 py-0.5 bg-slate-500/10 text-slate-400 rounded text-[9px] font-bold">Meskeram 2026</span>
+                        </div>
+
+                        <!-- Ledger Details Table -->
+                        <div class="space-y-3.5 text-xs font-medium">
+                            <div class="flex justify-between border-b pb-2" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                                <span :class="isDark ? 'text-slate-400' : 'text-slate-650'">{{ content[locale].lab3.salesLabel }}</span>
+                                <span class="font-bold text-sm" :class="isDark ? 'text-white' : 'text-slate-900'">
+                                    240,000.00 ETB
+                                </span>
                             </div>
                             
-                            <div @click="unlockToEdit = !unlockToEdit" 
-                                 class="w-12 h-7 rounded-full p-1 flex items-center cursor-pointer transition-colors duration-200"
-                                 :class="unlockToEdit ? 'bg-blue-600 justify-end' : 'bg-slate-700 justify-start'"
-                            >
-                                <div class="h-5 w-5 bg-white rounded-full flex items-center justify-center text-[10px] text-blue-600 font-bold shadow-md">
-                                    {{ unlockToEdit ? '🔓' : '🔒' }}
+                            <div class="flex justify-between border-b pb-2" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                                <span :class="isDark ? 'text-slate-400' : 'text-slate-650'">{{ content[locale].lab3.zReportLabel }}</span>
+                                <span class="font-bold text-sm text-indigo-400">
+                                    242,000.00 ETB
+                                </span>
+                            </div>
+
+                            <!-- Alert status boxes -->
+                            <div v-if="ledgerState === 'mismatch'" class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl space-y-2">
+                                <p class="font-bold text-[11px]">{{ content[locale].lab3.warningAlert }}</p>
+                                <button @click="rejectLedger" 
+                                        class="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                                >
+                                    {{ content[locale].lab3.rejectBtn }}
+                                </button>
+                            </div>
+
+                            <div v-if="ledgerState === 'rejected'" class="p-4 bg-slate-550/10 text-slate-400 border border-slate-800 text-center rounded-xl font-bold animate-pulse">
+                                {{ content[locale].lab3.waitMsg }}
+                            </div>
+
+                            <div v-if="ledgerState === 'corrected' || ledgerState === 'locked'" class="space-y-4 pt-1 animate-fade-in">
+                                <div class="p-3 bg-emerald-500/10 border border-emerald-500/25 text-emerald-450 text-xs font-semibold rounded-xl">
+                                    {{ content[locale].lab3.correctedMsg }}
+                                </div>
+
+                                <!-- LEDGER LOCK TOGGLE SWITCH -->
+                                <div class="p-4 border rounded-2xl space-y-3 shadow-inner"
+                                     :class="isDark ? 'bg-slate-950/20 border-slate-850' : 'bg-slate-50 border-slate-200'"
+                                >
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <span class="text-xs font-black uppercase" :class="isDark ? 'text-slate-350' : 'text-slate-800'">
+                                                {{ content[locale].lab3.lockSwitchLabel }}
+                                            </span>
+                                            <p class="text-[9px] text-slate-500">{{ content[locale].lab3.switchDesc }}</p>
+                                        </div>
+
+                                        <!-- Simple HTML Toggle switch -->
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" v-model="unlockToEdit" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </div>
+
+                                    <div class="flex items-center gap-1.5 justify-center py-2 rounded-xl text-[10px] font-black uppercase border"
+                                         :class="[
+                                             ledgerState === 'locked' 
+                                                 ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/25 animate-pulse' 
+                                                 : 'text-amber-500 bg-amber-500/10 border-amber-500/25'
+                                         ]"
+                                    >
+                                        <LockClosedIcon v-if="ledgerState === 'locked'" class="h-4.5 w-4.5" />
+                                        <span>{{ ledgerState === 'locked' ? content[locale].lab3.lockedBadge : content[locale].lab3.unlockedBadge }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <p class="text-xs text-center text-blue-500 font-bold">{{ slides[locale].slide8.widgetTip }}</p>
                     </div>
+
                 </div>
             </div>
 
-            <!-- SLIDE 9: ADMIN CHECKLIST & NEXT STEPS -->
-            <div v-if="currentSlide === 9" class="w-full flex flex-col items-center justify-center py-6 text-center relative z-10 space-y-4 max-w-2xl animate-fade-in">
-                <span class="text-xs font-black tracking-widest text-blue-400 uppercase">{{ slides[locale].slide9.badge }}</span>
-                <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-955'">
-                    {{ slides[locale].slide9.title }}
-                </h2>
-                <p class="text-lg font-medium" :class="isDark ? 'text-slate-400' : 'text-slate-650'">
-                    {{ slides[locale].slide9.subtitle }}
-                </p>
-                
-                <div class="p-6 rounded-[32px] border text-left w-full max-w-lg mx-auto space-y-3 text-sm"
-                     :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-350' : 'bg-white border-slate-250 text-slate-700 shadow-md'"
-                >
-                    <div v-for="item in checklistItems" :key="item.id" 
-                         @click="toggleCheck(item)"
-                         class="flex items-start gap-3 cursor-pointer select-none py-2 rounded-xl hover:bg-slate-500/10 px-3 transition-colors"
-                    >
-                        <input type="checkbox" :checked="item.checked" class="accent-blue-600 h-5 w-5 shrink-0 rounded mt-0.5 cursor-pointer">
-                        <span :class="{'line-through text-slate-500': item.checked}">
-                            {{ locale === 'en' ? item.text_en : item.text_am }}
-                        </span>
-                    </div>
+            <!-- STEP 4: GRADUATION -->
+            <div v-if="currentStep === 4" class="max-w-4xl mx-auto py-4 space-y-8 animate-fade-in relative z-10">
+                <!-- Pure-CSS Confetti Particles -->
+                <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div class="confetti-particle bg-blue-500 top-0 left-[10%]"></div>
+                    <div class="confetti-particle bg-indigo-500 top-0 left-[30%]"></div>
+                    <div class="confetti-particle bg-emerald-500 top-0 left-[50%]"></div>
+                    <div class="confetti-particle bg-teal-500 top-0 left-[70%]"></div>
+                    <div class="confetti-particle bg-purple-500 top-0 left-[90%]"></div>
                 </div>
 
-                <div class="pt-6">
-                    <button @click="goToSlide(1)" class="px-6 py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-2xl transition-all inline-flex items-center gap-2 text-xs uppercase tracking-widest">
-                        🔄 {{ locale === 'en' ? 'Restart Guide' : 'ድጋሚ ጀምር' }}
-                    </button>
+                <div class="text-center space-y-4 max-w-2xl mx-auto">
+                    <span class="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/25 text-emerald-450 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest animate-pulse">
+                        <SparklesIcon class="h-4 w-4" />
+                        {{ content[locale].graduation.title }}
+                    </span>
+                    <h2 class="text-4xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-900'">
+                        {{ locale === 'en' ? 'Manager Certified!' : 'የማናጀር ብቃት ማረጋገጫ ተሰጥቶዎታል!' }}
+                    </h2>
+                    <p class="text-base font-semibold" :class="isDark ? 'text-slate-400' : 'text-slate-650'">
+                        {{ content[locale].graduation.subtitle }}
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-8 items-center">
+                    
+                    <!-- Left Column: Certificate Badge details & User Name Input -->
+                    <div class="md:col-span-2 space-y-6">
+                        <div class="p-6 rounded-[28px] border space-y-4" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-lg'">
+                            <span class="text-xs font-black uppercase text-slate-500 block">{{ content[locale].graduation.badgeLabel }}</span>
+                            <div class="flex items-center gap-4">
+                                <span class="h-16 w-16 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-650 flex items-center justify-center text-3xl shadow-lg">🛡️</span>
+                                <div>
+                                    <h4 class="font-black text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ content[locale].graduation.badgeTitle }}</h4>
+                                    <p class="text-xs text-slate-550 font-semibold">{{ content[locale].graduation.badgeDesc }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Name Edit Input -->
+                        <div class="space-y-2">
+                            <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].graduation.certNameLabel }}</label>
+                            <input type="text" v-model="userName" 
+                                   class="w-full bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold text-sm outline-none transition-all"
+                                   :class="isDark ? 'border-slate-800 text-white focus:border-blue-500' : 'border-slate-250 text-slate-900 focus:border-blue-500'"
+                            >
+                        </div>
+
+                        <Link href="/training" 
+                              class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-center font-black rounded-2xl text-xs uppercase tracking-wider transition-all block shadow-lg shadow-blue-600/10 hover:-translate-y-0.5"
+                        >
+                            {{ content[locale].graduation.homeBtn }}
+                        </Link>
+                    </div>
+
+                    <!-- Right Column: Official Certificate Mockup -->
+                    <div class="md:col-span-3">
+                        <div class="rounded-[36px] border-8 p-8 relative overflow-hidden shadow-2xl text-center space-y-6"
+                             :class="isDark 
+                                 ? 'bg-[#0a0f1d] border-blue-500/30 text-slate-350 shadow-blue-500/5' 
+                                 : 'bg-white border-blue-100 text-slate-700 shadow-xl'"
+                        >
+                            <!-- Seals & Decoration -->
+                            <div class="absolute top-4 left-4 h-10 w-10 border-t-2 border-l-2 border-blue-500/20"></div>
+                            <div class="absolute top-4 right-4 h-10 w-10 border-t-2 border-r-2 border-blue-500/20"></div>
+                            <div class="absolute bottom-4 left-4 h-10 w-10 border-b-2 border-l-2 border-blue-500/20"></div>
+                            <div class="absolute bottom-4 right-4 h-10 w-10 border-b-2 border-r-2 border-blue-500/20"></div>
+
+                            <div class="space-y-2">
+                                <span class="text-[9px] uppercase font-black text-blue-500 tracking-widest">Certificate of Leadership</span>
+                                <h3 class="text-xl sm:text-2xl font-black font-outfit tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 uppercase">
+                                    {{ content[locale].graduation.certTitle }}
+                                </h3>
+                                <p class="text-xs uppercase font-extrabold text-slate-500">{{ content[locale].graduation.certSubtitle }}</p>
+                            </div>
+
+                            <div class="py-4 border-y border-slate-500/10">
+                                <span class="text-xs text-slate-500 block uppercase mb-1">PROUDLY PRESENTED TO</span>
+                                <span class="text-2xl sm:text-3xl font-black font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">
+                                    {{ userName }}
+                                </span>
+                            </div>
+
+                            <p class="text-[11px] leading-relaxed font-semibold max-w-md mx-auto">
+                                {{ content[locale].graduation.certBody }}
+                            </p>
+
+                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 pt-4 uppercase">
+                                <span>{{ content[locale].graduation.certDate }}</span>
+                                <span class="text-blue-400 font-extrabold">GGAA Audit Academy</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
+
         </main>
 
-        <!-- Slides Navigation Controls -->
-        <footer class="w-full py-6 px-6 lg:px-12 flex justify-between items-center border-t sticky bottom-0 z-50 transition-colors"
-                :class="isDark ? 'border-slate-800 bg-[#04060d]' : 'border-slate-200 bg-slate-100'"
+        <!-- Footer Operations Title -->
+        <footer class="w-full py-4 border-t transition-colors text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest"
+                :class="isDark ? 'border-slate-850 bg-[#060a12]' : 'border-slate-200 bg-slate-100'"
         >
-            <span class="text-xs font-bold" :class="isDark ? 'text-slate-500' : 'text-slate-650'">
-                {{ locale === 'en' ? 'GGAA Admins Course' : 'ጂጂኤኤ የአስተዳዳሪዎች ስልጠና' }}
-            </span>
-            
-            <div class="flex items-center gap-6">
-                <button @click="prevSlide" class="p-2.5 rounded-xl border hover:scale-105 active:scale-95 transition-all text-slate-400 hover:text-blue-500"
-                        :class="isDark ? 'border-slate-800 hover:bg-slate-900' : 'border-slate-200 hover:bg-white'"
-                >
-                    <ChevronLeftIcon class="h-4 w-4" />
-                </button>
-                
-                <span class="text-sm font-bold tracking-wider font-outfit" :class="isDark ? 'text-slate-400' : 'text-slate-700'">
-                    {{ locale === 'en' ? 'Slide' : 'ስላይድ' }} <span class="text-blue-500">{{ currentSlide }}</span> of <span>{{ totalSlides }}</span>
-                </span>
-                
-                <button @click="nextSlide" class="p-2.5 rounded-xl border hover:scale-105 active:scale-95 transition-all text-slate-400 hover:text-blue-500"
-                        :class="isDark ? 'border-slate-800 hover:bg-slate-900' : 'border-slate-200 hover:bg-white'"
-                >
-                    <ChevronRightIcon class="h-4 w-4" />
-                </button>
-            </div>
-            
-            <div class="text-[11px] uppercase font-black hidden md:block" :class="isDark ? 'text-slate-600' : 'text-slate-400'">
-                GGAA Systems
-            </div>
+            GGAA Systems Portal • leadership simulator
         </footer>
-
     </div>
 </template>
 
@@ -781,4 +788,25 @@ const slides = {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Custom pure-CSS Confetti Particles falling/rising */
+.confetti-particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: confetti-fall 4s linear infinite;
+    opacity: 0.7;
+}
+
+@keyframes confetti-fall {
+    0% { transform: translateY(-50px) rotate(0deg); opacity: 0.7; }
+    50% { opacity: 0.9; }
+    100% { transform: translateY(600px) rotate(360deg); opacity: 0; }
+}
+
+.confetti-particle:nth-child(2) { animation-delay: 0.8s; width: 10px; height: 10px; }
+.confetti-particle:nth-child(3) { animation-delay: 1.5s; width: 6px; height: 6px; }
+.confetti-particle:nth-child(4) { animation-delay: 2.2s; width: 9px; height: 9px; }
+.confetti-particle:nth-child(5) { animation-delay: 3s; width: 7px; height: 7px; }
 </style>

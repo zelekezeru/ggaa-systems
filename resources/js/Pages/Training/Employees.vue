@@ -1,25 +1,24 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { 
     UserIcon, AcademicCapIcon,
     ChevronLeftIcon, ChevronRightIcon,
-    ArrowLeftIcon, SunIcon, MoonIcon
+    ArrowLeftIcon, SunIcon, MoonIcon,
+    CheckCircleIcon, ExclamationTriangleIcon,
+    MapPinIcon, ClockIcon, DocumentTextIcon,
+    SparklesIcon
 } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
+import Toast from 'vue-toastification';
 
 const { locale } = useI18n();
 
 const isDark = ref(true);
-const currentSlide = ref(1);
-const totalSlides = 9;
+const currentStep = ref(0); // 0: Overview, 1: Lab 1, 2: Lab 2, 3: Lab 3, 4: Graduation
+const userName = ref('Abebe Kebede');
 
-// Interactive Stress Meter state
-const hasClientA = ref(true);
-const hasClientB = ref(false);
-const hasErrand = ref(true);
-const hasProject = ref(false);
-
+// Load settings
 onMounted(() => {
     const savedTheme = localStorage.getItem('training-theme');
     if (savedTheme === 'light') {
@@ -39,230 +38,270 @@ function setLanguage(lang) {
     localStorage.setItem('locale', lang);
 }
 
-function nextSlide() {
-    if (currentSlide.value < totalSlides) currentSlide.value++;
+// ==========================================
+// LAB 1 STATE: PRIORITIZE & DELEGATE
+// ==========================================
+const lab1TaskState = ref('pending'); // 'pending' or 'review'
+const lab1Delegated = ref(false);
+
+const lab1Stress = computed(() => {
+    let base = 35; // base stress from normal tasks
+    if (lab1TaskState.value === 'pending') base += 30; // red task is high stress
+    if (!lab1Delegated.value) base += 15; // low task is extra stress
+    return base;
+});
+
+const lab1Passed = computed(() => {
+    return lab1TaskState.value === 'review' && lab1Stress.value < 50;
+});
+
+// ==========================================
+// LAB 2 STATE: ERRAND TRIP TRACKING
+// ==========================================
+const lab2State = ref('ready'); // 'ready', 'traveling', 'arrived', 'completed'
+const travelProgress = ref(0);
+let travelInterval = null;
+
+const lab2Passed = computed(() => {
+    return lab2State.value === 'completed';
+});
+
+function startTravel() {
+    if (lab2State.value !== 'ready') return;
+    lab2State.value = 'traveling';
+    travelProgress.value = 0;
+    
+    travelInterval = setInterval(() => {
+        if (travelProgress.value < 100) {
+            travelProgress.value += 10;
+        } else {
+            clearInterval(travelInterval);
+            lab2State.value = 'arrived';
+        }
+    }, 300);
 }
 
-function prevSlide() {
-    if (currentSlide.value > 1) currentSlide.value--;
+function completeErrand() {
+    if (lab2State.value !== 'arrived') return;
+    lab2State.value = 'completed';
 }
 
-function goToSlide(n) {
-    if (n >= 1 && n <= totalSlides) currentSlide.value = n;
+// ==========================================
+// LAB 3 STATE: TIN CERTIFICATE VALIDATION
+// ==========================================
+const inputTin = ref('');
+const inputLegal = ref('');
+const lab3Error = ref('');
+const lab3Passed = ref(false);
+
+function validateLab3() {
+    lab3Error.value = '';
+    // Expected values matching the mock certificate
+    if (inputTin.value.trim() === '0928301840' && inputLegal.value === 'PLC') {
+        lab3Passed.value = true;
+    } else {
+        if (locale.value === 'en') {
+            lab3Error.value = '❌ Invalid credentials. Please inspect the certificate carefully!';
+        } else {
+            lab3Error.value = '❌ የተሳሳተ መረጃ ነው። እባክዎ ምስክር ወረቀቱን በጥንቃቄ ይመልከቱ!';
+        }
+    }
 }
 
-// Interactive states inside slide mockup
-const localDailyTasks = ref([
-    { id: 1, title: 'Deliver Audit Document', location: 'Ministry of Revenues - Bole', status: 'in_progress', icon: '✉️' },
-    { id: 2, title: 'Reconcile Awake Shop', location: 'Awash Bank Bole', status: 'pending', icon: '👤' }
-]);
+// ==========================================
+// GRADUATION & STATE SAVING
+// ==========================================
+watch(currentStep, (newStep) => {
+    if (newStep === 4) {
+        localStorage.setItem('training-completed-employees', 'true');
+    }
+});
 
-function advanceDailyStatus(task) {
-    if (task.status === 'pending') task.status = 'in_progress';
-    else if (task.status === 'in_progress') task.status = 'done';
-}
-
-const checklistItems = ref([
-    { id: 1, text_en: 'Check your personal task board first thing in the morning.', text_am: 'ጠዋት ስራ ሲጀምሩ መጀመሪያ የግል ስራ ሰሌዳዎን ይፈትሹ።', checked: false },
-    { id: 2, text_en: 'Mark any outdoor errand trips as "In Progress" when you leave.', text_am: 'ለስራ ወደ ውጭ ሲወጡ የጉዞ ሁኔታውን "በሂደት ላይ" ብለው ይመዝግቡ።', checked: false },
-    { id: 3, text_en: 'Ensure your workload stress meter stays in the green zone.', text_am: 'የስራ ጭነትዎ ሁልጊዜ በአረንጓዴ (ጤናማ) ክልል ውስጥ መሆኑን ያረጋግጡ።', checked: false },
-    { id: 4, text_en: 'Upload tax slips and receipts directly into the task window.', text_am: 'የታክስ ደረሰኞችን እና ሰነዶችን ቀጥታ በስራው ዝርዝር ሳጥን ውስጥ ይስቀሉ::', checked: false },
-    { id: 5, text_en: 'Send completed monthly books to your manager for review.', text_am: 'ያጠናቀቁትን ወርሃዊ ሂሳብ ለማናጀርዎ ለግምገማ ይላኩ።', checked: false }
-]);
-
-function toggleCheck(item) {
-    item.checked = !item.checked;
-}
-
-// Simple and Friendly bilingual slide content
-const slides = {
+// Localization content
+const content = {
     en: {
-        slide1: {
-            badge: "Part 1: Your Daily Dashboard",
-            title: "Your Daily Work Made Easy",
-            subtitle: "Welcome! We have built this simple guide to show you exactly how to use your new dashboard, manage your chores, and get work done easily with your team."
+        backBtn: "Back to Tracks",
+        headerTitle: "Employee Academy",
+        headerSubtitle: "Interactive Operations Simulator",
+        stepNames: ["Overview", "Lab 1: Prioritize", "Lab 2: Errand Log", "Lab 3: TIN Verify", "Graduation 🎓"],
+        
+        overview: {
+            title: "Welcome to GGAA Employee Academy!",
+            desc1: "This simulator will guide you through the exact daily operational flows required by our branch offices. Rather than just reading, you will participate in three active laboratory exercises to prove your readiness.",
+            desc2: "Learn to handle your personal task dashboard, track outdoor errand logs on the mobile simulation, and validate business licenses with local tax guidelines.",
+            startBtn: "Start Practical Training",
         },
-        slide2: {
-            badge: "Part 2: What You Will Do",
-            title: "What You Will Do Every Day",
-            subtitle: "As an accountant or assistant, your day is split into two simple parts to help keep our clients happy:",
-            box1: "📊 1. Monthly Bookkeeping",
-            box1Desc: "Collect sales logs and receipts from clients, make sure the numbers match, and send monthly summaries to your manager.",
-            box2: "🚗 2. Errands & Team Projects",
-            box2Desc: "Do cool stuff like going to the Ministry of Revenues, delivering physical folders, and working with other squad members on major projects.",
-            kpiTitle: "What Managers Look For:",
-            kpi1: "On-time work (completing tasks before deadlines)",
-            kpi2: "Healthy stress levels (not taking on too much work)",
-            kpi3: "Accurate calculations (zero typos)"
+        lab1: {
+            guideTitle: "Lab 1: Prioritize & Delegate",
+            intro: "In GGAA, managers track your workload in points. Your total stress load must remain in the Green Zone (under 50 points) to avoid burnout. Red-flagged tasks indicate urgent compliance deadlines and must be submitted for review first.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. Identify the red-flagged task (Zenith PLC) and click 'Move to Review' to submit it.",
+            inst2: "2. Your stress level will still be high. Click 'Delegate to Assistant' on the low-priority task (Haddis Shop) to distribute the load.",
+            inst3: "3. When stress is in the green zone and the red task is submitted, click 'Next Lab'.",
+            panelTitle: "Mock Workload Dashboard",
+            stressLabel: "Workload Stress Meter:",
+            optimal: "Too Chill (Need tasks)",
+            happy: "Happy & Safe (Green Zone)",
+            busy: "Busy & Focused",
+            stressed: "Overloaded! Action required!",
+            boardTitle: "Personal Task Board",
+            pendingCol: "Pending Docs",
+            reviewCol: "Under Review",
+            moveBtn: "Move to Review",
+            delegateBtn: "Delegate to Assistant",
+            delegatedBadge: "Delegated Out",
+            redBadge: "🚨 High Risk - Due in 2h",
+            yellowBadge: "Low Priority",
+            successMsg: "🎉 Success! You prioritized the red-flagged task and delegated the minor work. Stress load is now at a healthy 50 Pts. You can proceed!",
         },
-        slide3: {
-            badge: "Part 3: The Task Board",
-            title: "Your Personal Task Board",
-            subtitle: "Think of this as a simple, visual to-do list. Just drag your task cards from left to right as you work on them!",
-            col1: "Pending Docs",
-            col2: "To Do",
-            col3: "Review",
-            col4: "Done",
-            tip: "💡 Note: You cannot drag cards to 'Done' yourself. A manager will sign off and move them to Done after checking your work!"
+        lab2: {
+            guideTitle: "Lab 2: Errand Log Simulation",
+            intro: "Whenever you go outdoors for physical tasks (like submitting folders at the Ministry of Revenues or withdrawing tax logs at a bank), you must log the errand status. This helps managers track travel and calculate mileage reimbursements.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. Review the active outdoor errand on the mobile screen mockup on the right.",
+            inst2: "2. Click 'Start Errand Trip' to begin. Wait for the simulated GPS tracker to arrive at the destination.",
+            inst3: "3. Once arrived, click 'Confirm Delivery' to complete the task.",
+            mobileTitle: "GGAA Mobile Errand Log",
+            errandTitle: "Submit Audit Folder",
+            errandLoc: "Ministry of Revenues - Bole Branch",
+            stateReady: "Ready to start",
+            stateTraveling: "GPS Route Active - Traveling...",
+            stateArrived: "Arrived at destination",
+            stateDone: "Errand Log Succeeded!",
+            startBtn: "Start Errand Trip",
+            deliverBtn: "Confirm Delivery",
+            successMsg: "🎉 Success! Errand marked as complete and logged. Manager has been notified.",
         },
-        slide4: {
-            badge: "Part 4: Stress Meter",
-            title: "Keeping Your Workload Balanced",
-            subtitle: "We care about your peace of mind! That's why we measure work in points, not by the number of clients you have.",
-            boxTitle: "Try It Yourself: Interactive Stress Meter",
-            boxSub: "Toggle the chores below to see how they impact your stress bar and stress levels in real-time:",
-            c1: "Selam Trading PLC (Large Business) — 30 Pts",
-            c2: "Coffee Exports (Medium Business) — 15 Pts",
-            c3: "Ministry Errand (Outdoor trip) — 10 Pts",
-            c4: "Squad Project Share (Team Audits) — 15 Pts",
-            stressLabel: "Current Stress Level:",
-            optimal: "😴 Too chill... Need some action!",
-            happy: "🟢 Happy & Productive! The sweet spot.",
-            busy: "🟡 Busy but focused. Keep going!",
-            stressed: "🔴 Super Stressed! Overloaded! Call for help!"
+        lab3: {
+            guideTitle: "Lab 3: TIN & License Verification",
+            intro: "Before filing tax reports, you must verify the client's information against their official government-issued license. Typographical errors in Tax Identification Numbers (TIN) lead to severe compliance rejections.",
+            instructionTitle: "Your Laboratory Objective:",
+            inst1: "1. Inspect the official Ministry of Trade registration certificate displayed on the right.",
+            inst2: "2. Identify the 10-digit Tax Identification Number (TIN) and the Legal Structure.",
+            inst3: "3. Fill in the data input fields below the guide and click 'Validate and Save'.",
+            tinLabel: "Enter 10-Digit TIN:",
+            legalLabel: "Select Legal Structure:",
+            validateBtn: "Validate & Save",
+            successMsg: "🎉 Success! TIN matched and legal status validated. Client files updated.",
         },
-        slide5: {
-            badge: "Part 5: At-Risk Flags",
-            title: "Keeping an Eye on At-Risk Clients",
-            subtitle: "The system has an auto-pilot flag engine. It puts warning labels on tasks that are late so you know what needs your attention first!",
-            red: "🔴 Red Alert: High Risk",
-            redDesc: "Tasks that are already past their due date, missing important tax files, or have immediate government deadlines.",
-            yellow: "🟡 Yellow Alert: Medium Risk",
-            yellowDesc: "Tasks due within two days, or when we have been waiting on a client's reply for more than 3 days."
-        },
-        slide6: {
-            badge: "Part 6: Out-of-Office Errands",
-            title: "Tracking Your Errands on Your Phone",
-            subtitle: "Need to visit a tax office or drop off a physical paper? Use the Errand Log on your dashboard to track your outdoor trips easily on your mobile screen!",
-            tip: "💡 Interactive Tip: Try clicking the status badges on the cards below to advance them from Pending ➔ In Progress ➔ Done!"
-        },
-        slide7: {
-            badge: "Part 7: Team Projects",
-            title: "Working Together in Squads",
-            subtitle: "Large corporate clients are handled by dynamic squads. This makes work easier and more fun!",
-            point1: "Leader Control: The squad leader helps guide the project and reviews everyone's drafts.",
-            point2: "Shared Load: Project complexity points are split proportionally among squad members.",
-            point3: "Live Team Chat: Chat with your squad and upload files directly in the project page."
-        },
-        slide8: {
-            badge: "Part 8: Rewards & Badges",
-            title: "Earn Fun Profile Badges!",
-            subtitle: "We love celebrating great work! Completing your tasks on time and keeping accurate calculations unlocks cool badges for your public profile:",
-            b1Title: "⚡ Speed Demon",
-            b1Desc: "Completed 5 tasks before their deadlines",
-            b2Title: "🛡️ Golden Auditor",
-            b2Desc: "Zero verification errors from your manager",
-            b3Title: "🤝 Super Partner",
-            b3Desc: "Successfully helped on 3 squad audits"
-        },
-        slide9: {
-            badge: "Part 9: Graduation",
-            title: "Your Daily Checklist",
-            subtitle: "Keep this simple checklist handy every day to make your work smooth, stress-free, and productive:"
+        graduation: {
+            title: "Congratulations, Graduate!",
+            subtitle: "You have successfully completed all three operational simulation challenges.",
+            badgeLabel: "Unlocked Profile Badge:",
+            badgeTitle: "⚡ Speed Demon",
+            badgeDesc: "Completed operations training with zero verification errors.",
+            certTitle: "OPERATIONS SPECIALIST CERTIFICATE",
+            certSubtitle: "GGAA Systems Compliance Academy",
+            certBody: "This certifies that the holder has passed the rigorous operations simulator, demonstrated proficiency in capacity scheduling, GPS errand logging, and tax ID validation.",
+            certDate: "Certified on: June 2026",
+            certNameLabel: "Change Certificate Name:",
+            homeBtn: "Return to Training Hub",
         }
     },
     am: {
-        slide1: {
-            badge: "ክፍል 1፡ የእለታዊ ስራ ገጽ",
-            title: "የእለት ተእለት ስራዎ በቀላሉ",
-            subtitle: "እንኳን ደህና መጡ! የግል ስራ ሰሌዳዎን እንዴት እንደሚጠቀሙ፣ ስራዎችን እንደሚመዘግቡ፣ ከቡድንዎ ጋር አብረው እንደሚሰሩ እና ስራዎን በቀላሉ እንደሚጨርሱ የሚያሳይ ቀላል መመሪያ አዘጋጅተናል።"
+        backBtn: "ወደ ስልጠናዎች ተመለስ",
+        headerTitle: "የሰራተኞች የስልጠና ክፍል",
+        headerSubtitle: "የእለታዊ ስራዎች ማስመሰያ ገጽ",
+        stepNames: ["ማጠቃለያ", "ላብ 1: ቅድሚያ መስጠት", "ላብ 2: የውጭ ስራ", "ላብ 3: TIN ማረጋገጥ", "ምረቃ 🎓"],
+        
+        overview: {
+            title: "እንኳን ወደ ሰራተኞች የስልጠና ክፍል በደህና መጡ!",
+            desc1: "ይህ ሲስተም በቅርንጫፍ ቢሮዎቻችን ውስጥ በየቀኑ የሚሰሩ ስራዎችን በተግባር እንዲለማመዱ የሚረዳ ነው። ስልጠናው ዝም ብሎ ንባብ ሳይሆን የተግባር ብቃቶን የሚያረጋግጡበት 3 ላብራቶሪዎችን ያካተተ ነው።",
+            desc2: "በዚህ ስልጠና ላይ የግል ስራ ሰሌዳዎን ማስተዳደር፣ በስልክዎ የውጭ ስራዎችን መከታተል፣ እና የደንበኞችን የግብር ቁጥር መፈተሽ ይማራሉ።",
+            startBtn: "የተግባር ስልጠናውን ጀምር",
         },
-        slide2: {
-            badge: "ክፍል 2፡ የእርስዎ ኃላፊነት",
-            title: "በየቀኑ ምን እንደሚሰሩ",
-            subtitle: "እንደ አካውንታንት ወይም ረዳት ሰራተኛ፣ ደንበኞቻችንን ደስተኛ ለማድረግ የእለት ስራዎ በሁለት ቀላል ክፍሎች ይከፈላል፡",
-            box1: "📊 1. ወርሃዊ የሂሳብ መዛግብት",
-            box1Desc: "ከደንበኞች የሽያጭ ሪፖርቶችን እና ደረሰኞችን መሰብሰብ፣ ቁጥሮቹ በትክክል መጣጣማቸውን ማረጋገጥ እና ወርሃዊ ማጠቃለያ ለሂሳብ ማናጀርዎ መላክ።",
-            box2: "🚗 2. የውጭ ስራዎች እና የቡድን ፕሮጀክቶች",
-            box2Desc: "ወደ ታክስ ባለስልጣን (ገቢዎች) መሄድ፣ ወረቀቶችን ማድረስ እና ከሌሎች የቡድን አባላት ጋር በትላልቅ የደንበኞች ፕሮጀክቶች ላይ አብሮ መስራት።",
-            kpiTitle: "ማናጀሮች ትኩረት የሚሰጡባቸው ነጥቦች፡",
-            kpi1: "ስራን በሰዓቱ ማጠናቀቅ (ከቀነ ገደቡ በፊት መጨረስ)",
-            kpi2: "ከጭንቀት ነጻ መሆን (ከአቅም በላይ ስራ አለመደራረብ)",
-            kpi3: "ቁጥሮችን በጥንቃቄ መሙላት (ስህተቶችን ማስወገድ)"
+        lab1: {
+            guideTitle: "ላብ 1: ቅድሚያ መስጠት እና ስራ ማደላደል",
+            intro: "በጂጂኤኤ ሲስተም ውስጥ ማናጀሮች የእርስዎን የስራ ጫና በነጥቦች ይለካሉ። ከአቅም በላይ ጫና እንዳይኖርብዎት ጠቅላላ ነጥብዎ ሁልጊዜ ከአረንጓዴ (ከ50 በታች) መሆን አለበት። ቀይ ባንዲራ ያለባቸው ስራዎች አስቸኳይ በመሆናቸው ቀድመው ማለቅ አለባቸው።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. በቀኝ በኩል ካለው ገበታ ላይ ቀይ ባንዲራ ያለበትን ስራ (Zenith PLC) ፈልገው 'ለግምገማ ላክ' የሚለውን ይጫኑ።",
+            inst2: "2. አሁንም የስራ ጫናዎ ከፍተኛ ስለሆነ ዝቅተኛ ጠቀሜታ ያለውን ስራ (Haddis Shop) 'ለረዳት አስተላልፍ' የሚለውን ይጫኑ።",
+            inst3: "3. የስራ ጫናዎ አረንጓዴ ውስጥ ሲገባ እና ቀዩ ስራ ለግምገማ ሲላክ 'ቀጣይ ላብ' የሚለውን ይጫኑ።",
+            panelTitle: "የእለት ስራዎች ሰሌዳ ማሳያ",
+            stressLabel: "የስራ ጫና እና ጭንቀት መጠን:",
+            optimal: "በጣም ቀዝቃዛ (ስራ ይፈልጋል)",
+            happy: "ጤናማ እና ደስተኛ (Green Zone)",
+            busy: "ስራ በዝቷል ግን ጤናማ",
+            stressed: "ከአቅም በላይ ጫና! እርዳታ ይጠይቁ!",
+            boardTitle: "የግል ስራ ሰሌዳ",
+            pendingCol: "የሚጠበቁ ሰነዶች",
+            reviewCol: "ለግምገማ የቀረቡ",
+            moveBtn: "ለግምገማ ላክ",
+            delegateBtn: "ለረዳት አስተላልፍ",
+            delegatedBadge: "ለረዳት የተሰጠ",
+            redBadge: "🚨 ከፍተኛ አደጋ - በ2 ሰዓት ውስጥ",
+            yellowBadge: "ዝቅተኛ ቅድሚያ",
+            successMsg: "🎉 እንኳን ደስ አለዎት! ቀይ ባንዲራ ያለበትን ስራ ቅድሚያ በመስጠት እና ቀላል ስራውን ለረዳት በማስተላለፍ የስራ ጫናዎን 50 ነጥብ (ጤናማ) አድርገዋል። ወደ ቀጣዩ መሄድ ይችላሉ!",
         },
-        slide3: {
-            badge: "ክፍል 3፡ የስራ ሰሌዳው",
-            title: "የግል ስራ ሰሌዳዎ (Kanban)",
-            subtitle: "ይህንን እንደ ቀላል የቤት ስራ ሰሌዳ ይቁጠሩት። ስራዎችን ሲሰሩ ካርዶቹን ከግራ ወደ ቀኝ መሳብ ብቻ ነው!",
-            col1: "ሰነድ የሚጠበቅባቸው",
-            col2: "የሚሰሩ ስራዎች",
-            col3: "ለግምገማ",
-            col4: "የተጠናቀቁ",
-            tip: "💡 ማስታወሻ፡ ካርዶችን እራስዎ ወደ 'የተጠናቀቁ' መሳብ አይችሉም። ማናጀርዎ ስራዎን ፈትሾ ሲያጸድቅ እራሱ ያንቀሳቅሰዋል።"
+        lab2: {
+            guideTitle: "ላብ 2: የውጭ ስራዎች መከታተያ",
+            intro: "ለስራ ወደ ውጭ ሲወጡ (ለምሳሌ ገቢዎች ሚኒስቴር ወረቀት ለማስገባት ወይም ባንክ ለመሄድ) ጉዞዎን መመዝገብ አለብዎት። ይህ ማናጀሩ የእርስዎን የትራንስፖርት ወጪ በትክክል ለማስላት ይረዳዋል።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. በቀኝ በኩል ባለው የስልክ ማሳያ ላይ ያለውን የውጭ ስራ ይመልከቱ።",
+            inst2: "2. 'ጉዞ ጀምር' የሚለውን ይጫኑ። መኪናው መንገዱን እስኪያጠናቅቅ ይጠብቁ።",
+            inst3: "3. መድረሱን ሲያረጋግጥ 'ማድረስህን አረጋግጥ' የሚለውን በመጫን ስራውን ያጠናቅቁ።",
+            mobileTitle: "የጂጂኤኤ እለታዊ የጉዞ መዝገብ",
+            errandTitle: "የኦዲት ዶክመንት ማስገባት",
+            errandLoc: "ገቢዎች ሚኒስቴር - ቦሌ ቅርንጫፍ",
+            stateReady: "ለመጀመር ዝግጁ ነው",
+            stateTraveling: "የጉዞ መስመር ላይ - በጉዞ ላይ...",
+            stateArrived: "መድረሻ ቦታ ደርሷል",
+            stateDone: "የውጭ ስራ ምዝገባ በተሳካ ሁኔታ ተጠናቋል!",
+            startBtn: "ጉዞ ጀምር",
+            deliverBtn: "ማድረስህን አረጋግጥ",
+            successMsg: "🎉 እንኳን ደስ አለዎት! ጉዞው ተመዝግቦ ተጠናቋል። ማናጀሩ መረጃው ደርሶታል።",
         },
-        slide4: {
-            badge: "ክፍል 4፡ የስራ ጫና መለኪያ",
-            title: "ከአቅምዎ በላይ እንዳይጫኑ መጠንቀቅ",
-            subtitle: "እርስዎ እንዲጨነቁ አንፈልግም! ለዚህም ነው ስራዎችን የምንለካው በደንበኞች ብዛት ሳይሆን በስራ ውስብስብነት ነጥብ ነው።",
-            boxTitle: "እራስዎ ይሞክሩት፡ የስራ ጫና መለኪያ",
-            boxSub: "የስራ ጫናዎ እና የጭንቀት መጠንዎ እንዴት እንደሚቀያየር ከታች ያሉትን ስራዎች በማብራት እና በማጥፋት ይሞክሩ፡",
-            c1: "ሰላም ንግድ ኃ/የተ/የግ/ማ (ትልቅ ስራ) — 30 ነጥብ",
-            c2: "ቡና ላኪ ድርጅት (መካከለኛ ስራ) — 15 ነጥብ",
-            c3: "የገቢዎች ውጭ ስራ (አጭር ጉዞ) — 10 ነጥብ",
-            c4: "የቡድን ስራ ድርሻ (አጋር ኦዲት) — 15 ነጥብ",
-            stressLabel: "የስራ ጭንቀት ሁኔታዎ፡",
-            optimal: "😴 በጣም ቀዝቃዛ... ስራ ይጨመርልኝ!",
-            happy: "🟢 ደስተኛ እና ንቁ! ትክክለኛው የስራ መጠን።",
-            busy: "🟡 ስራ በዝቶብኛል ግን ትኩረት አድርጌያለሁ።",
-            stressed: "🔴 በጣም ተጨንቄያለሁ! ከአቅም በላይ ነው! እርዳታ እፈልጋለሁ!"
+        lab3: {
+            guideTitle: "ላብ 3: TIN እና ፈቃድ ማረጋገጥ",
+            intro: "ታክስ ከመሙላትዎ በፊት የደንበኛውን መረጃ ከመንግስት የንግድ ፈቃድ ጋር ማመሳከር አለብዎት። በግብር ከፋይ መለያ ቁጥር (TIN) ላይ የሚፈጠር ስህተት ከፍተኛ የገንዘብ ቅጣት እና የሪፖርት ውድቅ መሆን ያስከትላል።",
+            instructionTitle: "የተግባር ልምምድ መመሪያዎች:",
+            inst1: "1. በቀኝ በኩል የሚታየውን የንግድ ሚኒስቴር የምዝገባ ምስክር ወረቀት ይመልከቱ።",
+            inst2: "2. ባለ 10 አሃዝ የግብር ከፋይ ቁጥር (TIN) እና የህግ መዋቅሩን (Legal Structure) ይለዩ።",
+            inst3: "3. ከተግባር መመሪያው በታች ያሉትን ክፍተቶች በትክክል ይሙሉ እና 'አረጋግጥ' የሚለውን ይጫኑ።",
+            tinLabel: "ባለ 10 አሃዝ TIN ያስገቡ:",
+            legalLabel: "የህግ መዋቅር ይምረጡ:",
+            validateBtn: "አረጋግጥና አስቀምጥ",
+            successMsg: "🎉 እንኳን ደስ አለዎት! የግብር ከፋይ መለያ ቁጥር እና የህግ መዋቅሩ በትክክል ተረጋግጧል። የደንበኛው ማህደር ተስተካክሏል።",
         },
-        slide5: {
-            badge: "ክፍል 5፡ የአደጋ ቀይ ባንዲራዎች",
-            title: "አደጋ ላይ ያሉ ደንበኞችን መከታተል",
-            subtitle: "ሲስተሙ አውቶማቲክ የአደጋ መፈተሻ አለው። የቀነ ገደባቸው ያለፈባቸውን ስራዎች በቀለም በመለየት የትኛውን ቀድመው መስራት እንዳለብዎ ያሳይዎታል!",
-            red: "🔴 ቀይ ባንዲራ፡ ከፍተኛ አደጋ",
-            redDesc: "ቀነ ገደባቸው ያለፈባቸው፣ የታክስ ሰነድ የጎደላቸው ወይም አስቸኳይ የመንግስት ታክስ ሪፖርት የሚገባቸው ስራዎች።",
-            yellow: "🟡 ቢጫ ባንዲራ፡ መካከለኛ አደጋ",
-            yellowDesc: "በሁለት ቀናት ውስጥ መቅረብ ያለባቸው ወይም ከደንበኛው ምላሽ ለመቀበል ከ3 ቀናት በላይ የዘገዩ ስራዎች።"
-        },
-        slide6: {
-            badge: "ክፍል 6፡ የውጭ ስራዎች መመዝገቢያ",
-            title: "የውጭ ስራዎችን በስልክዎ መከታተል",
-            subtitle: "ወደ መንግስት ታክስ ቢሮ መሄድ አለብዎት ወይስ ወረቀት ማድረስ? የእለት ስራዎን በቀላሉ በስልክዎ መከታተል እንዲችሉ በእለታዊ የጉዞ መዝገብ ላይ ይመዝግቡት!",
-            tip: "💡 በይነተገናኝ ምክር፡ ከታች ያሉትን ካርዶች ሁኔታ ለመቀየር ባጆቹን ይጫኑ (የሚጠበቅ ➔ በሂደት ላይ ➔ ተጠናቀቀ)!"
-        },
-        slide7: {
-            badge: "ክፍል 7፡ የቡድን ስራዎች",
-            title: "በቡድን አብሮ መስራት",
-            subtitle: "ለትላልቅ ደንበኞች ስራውን ቀለል እና አዝናኝ ለማድረግ ሰራተኞች በቡድን ተደራጅተው ይሰራሉ!",
-            point1: "የቡድን መሪ ኃላፊነት፡ መሪው ስራዎችን ያስተባብራል፣ ሪፖርቶችን ለManager ከመላኩ በፊት ይገመግማል።",
-            point2: "የተጋራ የስራ ጫና፡ የፕሮጀክቱ ጠቅላላ ነጥቦች እንደ ስራው ድርሻ ለቡድን አባላቱ ይከፋፈላሉ።",
-            point3: "የቡድን ውይይት፡ በፕሮጀክቱ ገጽ ላይ ከቡድንዎ ጋር ይወያዩ፣ ፋይሎችንም በቀጥታ ይለዋወጡ።"
-        },
-        slide8: {
-            badge: "ክፍል 8፡ ባጆችና ሽልማቶች",
-            title: "የሽልማት ባጆችን ያግኙ!",
-            subtitle: "ለጥሩ ስራ እውቅና እንሰጣለን! ስራዎችን በሰዓቱ ሲያጠናቅቁ እና ትክክለኛ መረጃ ሲያስገቡ በፕሮፋይልዎ ላይ የሚያማምሩ ባጆችን ያገኛሉ፡",
-            b1Title: "⚡ የፍጥነት ንጉስ",
-            b1Desc: "5 ስራዎችን ከቀነ ገደቡ በፊት ያጠናቀቀ",
-            b2Title: "🛡️ አስተማማኝ አካውንታንት",
-            b2Desc: "አንድም ስህተት የሌለበት ሪፖርት ያቀረበ",
-            b3Title: "🤝 የቡድን ምሶሶ",
-            b3Desc: "ለ3 የቡድን ፕሮጀክቶች መሳካት ከፍተኛ እገዛ ያደረገ"
-        },
-        slide9: {
-            badge: "ክፍል 9፡ ማጠቃለያ",
-            title: "ቀላል የእለት ስራዎች ማጠቃለያ",
-            subtitle: "በየቀኑ ስራዎ የተሳካ እና ከጭንቀት ነጻ እንዲሆን ይህንን አጭር የስራ ዝርዝር ይመልከቱ፡"
+        graduation: {
+            title: "እንኳን ደስ አለዎት! ተመርቀዋል!",
+            subtitle: "ሁሉንም 3 ተግባራዊ የሲስተም አጠቃቀም ፈተናዎችን በተሳካ ሁኔታ አጠናቀዋል።",
+            badgeLabel: "ያገኙት የክብር ባጅ:",
+            badgeTitle: "⚡ የፍጥነት ንጉስ",
+            badgeDesc: "ስልጠናውን ያለ ምንም ስህተት ያጠናቀቀ ባለሙያ።",
+            certTitle: "የተግባር ስራዎች ባለሙያ ሰርተፊኬት",
+            certSubtitle: "ጂጂኤኤ ሲስተምስ የስልጠና አካዳሚ",
+            certBody: "ይህ ሰርተፊኬት ባለቤቱ የተግባራዊ ስራዎች ማስመሰያ ፈተናዎችን ያለ ምንም ስህተት በማለፉ፣ በስራ ጫና ማደላደል፣ በጉዞ ምዝገባ እና በግብር ሰነዶች አሞላል ላይ ሙሉ ብቃት ማሳየቱን ያረጋግጣል።",
+            certDate: "የተሰጠበት ቀን: ሰኔ 2026",
+            certNameLabel: "በሰርተፊኬቱ ላይ ያለውን ስም ይቀይሩ:",
+            homeBtn: "ወደ ስልጠናዎች ማእከል ተመለስ",
         }
     }
 };
+
 </script>
 
 <template>
-    <Head :title="`${slides[locale].slide1.title} - GGAA Systems`" />
+    <Head :title="`${content[locale].headerTitle} - GGAA Systems`" />
 
     <div class="min-h-screen font-sans flex flex-col justify-between overflow-x-hidden transition-colors duration-300 selection:bg-indigo-600 selection:text-white"
-         :class="isDark ? 'bg-[#090d16] text-slate-100' : 'bg-slate-50 text-slate-800'"
+         :class="isDark ? 'bg-[#080d16] text-slate-100' : 'bg-slate-50 text-slate-800'"
     >
-        
+        <!-- Background Blur Particles -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] blur-[150px] rounded-full transition-opacity duration-300"
+                 :class="isDark ? 'bg-indigo-600/10 opacity-100' : 'bg-indigo-500/5 opacity-40'"></div>
+            <div class="absolute bottom-[10%] right-[10%] w-[35%] h-[35%] blur-[150px] rounded-full transition-opacity duration-300"
+                 :class="isDark ? 'bg-purple-600/10 opacity-100' : 'bg-purple-500/5 opacity-40'"></div>
+        </div>
+
         <!-- Top Navigation Bar -->
         <header class="w-full py-4 px-6 lg:px-12 flex justify-between items-center border-b backdrop-blur-md sticky top-0 z-50 transition-colors"
-                :class="isDark ? 'border-slate-800 bg-[#090d16]/80' : 'border-slate-200 bg-white/80'"
+                :class="isDark ? 'border-slate-850 bg-[#080d16]/80' : 'border-slate-200 bg-white/80'"
         >
             <Link href="/training" class="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors group">
                 <ArrowLeftIcon class="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-                {{ locale === 'en' ? 'Back to Tracks' : 'ወደ ስልጠናዎች ተመለስ' }}
+                {{ content[locale].backBtn }}
             </Link>
             
             <div class="flex items-center gap-3">
@@ -270,8 +309,12 @@ const slides = {
                     G
                 </div>
                 <div>
-                    <span class="text-base font-black tracking-wider uppercase font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">GGAA <span class="text-indigo-500">Systems</span></span>
-                    <span class="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">{{ locale === 'en' ? 'Employee Workspace Guide' : 'የሰራተኛ የስራ መመሪያ' }}</span>
+                    <span class="text-base font-black tracking-wider uppercase font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">
+                        GGAA <span class="text-indigo-500">Systems</span>
+                    </span>
+                    <span class="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                        {{ content[locale].headerSubtitle }}
+                    </span>
                 </div>
             </div>
             
@@ -294,540 +337,491 @@ const slides = {
             </div>
         </header>
 
-        <!-- Slides Container (Smoother, larger fonts, friendly) -->
-        <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-8 flex items-center justify-center relative">
-            <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] blur-[150px] rounded-full pointer-events-none transition-opacity duration-300"
-                 :class="[isDark ? 'bg-indigo-500/10 opacity-100' : 'bg-indigo-500/5 opacity-40']"></div>
-            <div class="absolute bottom-[10%] right-[10%] w-[35%] h-[35%] blur-[150px] rounded-full pointer-events-none transition-opacity duration-300"
-                 :class="[isDark ? 'bg-purple-500/10 opacity-100' : 'bg-purple-500/5 opacity-40']"></div>
+        <!-- Main Body: Course Curriculum Steps -->
+        <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-6 relative z-10 flex flex-col justify-center">
+            
+            <!-- Step Navigation Tabs -->
+            <div class="flex justify-center flex-wrap gap-2 mb-8 bg-slate-950/20 backdrop-blur-md p-1.5 rounded-2xl border border-slate-500/10 max-w-2xl mx-auto w-full">
+                <button v-for="(stepName, index) in content[locale].stepNames" :key="index"
+                        @click="index <= 3 || lab3Passed ? currentStep = index : null"
+                        class="px-4 py-2 text-xs font-bold font-outfit rounded-xl transition-all flex items-center gap-1.5"
+                        :class="[
+                            currentStep === index 
+                                ? 'bg-indigo-600 text-white shadow-md' 
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-550/5',
+                            (index > 0 && index <= 3 && !lab3Passed && index > currentStep + 1) ? 'opacity-40 cursor-not-allowed' : ''
+                        ]"
+                >
+                    <span class="h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-black border"
+                          :class="currentStep >= index ? 'border-white text-white' : 'border-slate-500 text-slate-500'"
+                    >
+                        {{ index + 1 }}
+                    </span>
+                    {{ stepName }}
+                </button>
+            </div>
 
-            <!-- SLIDE 1: WELCOME & TITLE -->
-            <div v-if="currentSlide === 1" class="w-full flex flex-col items-center justify-center text-center py-12 relative z-10 space-y-6 max-w-3xl animate-fade-in">
+            <!-- STEP 0: OVERVIEW -->
+            <div v-if="currentStep === 0" class="max-w-3xl mx-auto text-center space-y-6 py-12 animate-fade-in">
                 <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-black uppercase tracking-widest border border-indigo-500/20">
-                    <span class="h-2 w-2 rounded-full bg-indigo-400 animate-ping"></span>
-                    {{ slides[locale].slide1.badge }}
+                    <AcademicCapIcon class="h-5 w-5" />
+                    {{ locale === 'en' ? 'Track 1: Employees Workspace Operations' : 'ክፍል 1፡ የሰራተኞች የስራ ማስፈጸሚያ ስልጠና' }}
                 </span>
                 
-                <h1 class="text-5xl lg:text-7xl font-black font-outfit tracking-tighter leading-tight"
+                <h1 class="text-4xl sm:text-6xl font-black font-outfit tracking-tighter leading-tight"
                     :class="isDark ? 'text-white' : 'text-slate-950'"
                 >
-                    {{ slides[locale].slide1.title }}
+                    {{ content[locale].overview.title }}
                 </h1>
                 
-                <p class="text-xl md:text-2xl font-medium max-w-2xl mx-auto leading-relaxed"
-                   :class="isDark ? 'text-slate-300' : 'text-slate-600'"
-                >
-                    {{ slides[locale].slide1.subtitle }}
+                <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-300' : 'text-slate-600'">
+                    {{ content[locale].overview.desc1 }}
+                </p>
+                <p class="text-base leading-relaxed font-medium" :class="isDark ? 'text-slate-400' : 'text-slate-500'">
+                    {{ content[locale].overview.desc2 }}
                 </p>
 
-                <div class="pt-8 flex justify-center gap-4">
-                    <button @click="nextSlide" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm uppercase tracking-wider font-outfit">
-                        {{ locale === 'en' ? 'Get Started' : 'ጀምር' }}
+                <div class="pt-6">
+                    <button @click="currentStep = 1" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm uppercase tracking-wider font-outfit mx-auto">
+                        {{ content[locale].overview.startBtn }}
                         <ChevronRightIcon class="h-4 w-4" />
                     </button>
                 </div>
             </div>
 
-            <!-- SLIDE 2: ROLE OVERVIEW (Less professional, friendly) -->
-            <div v-if="currentSlide === 2" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide2.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide2.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-600'">
-                        {{ slides[locale].slide2.subtitle }}
-                    </p>
-                    
-                    <div class="space-y-4 pt-2">
-                        <div class="flex gap-4 p-4 rounded-3xl border transition-colors"
-                             :class="isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'"
-                        >
-                            <div class="h-10 w-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-bold shrink-0">1</div>
-                            <div>
-                                <h4 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide2.box1 }}</h4>
-                                <p class="text-sm mt-1" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide2.box1Desc }}</p>
-                            </div>
-                        </div>
-                        
-                        <div class="flex gap-4 p-4 rounded-3xl border transition-colors"
-                             :class="isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'"
-                        >
-                            <div class="h-10 w-10 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 font-bold shrink-0">2</div>
-                            <div>
-                                <h4 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide2.box2 }}</h4>
-                                <p class="text-sm mt-1" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide2.box2Desc }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <!-- SPLIT SCREEN LAYOUT FOR LABS (1, 2, 3) -->
+            <div v-if="currentStep > 0 && currentStep < 4" class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch py-2 min-h-[500px]">
                 
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="shadow-2xl rounded-[32px] p-8 w-full max-w-md border space-y-4"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-250 text-slate-700 shadow-lg'"
-                    >
-                        <h3 class="text-lg font-black uppercase tracking-wider pb-2 border-b"
-                            :class="isDark ? 'text-slate-400 border-slate-800' : 'text-slate-900 border-slate-200'"
-                        >
-                            {{ slides[locale].slide2.kpiTitle }}
-                        </h3>
-                        <ul class="space-y-3.5 text-sm">
-                            <li class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
-                                <span>{{ slides[locale].slide2.kpi1 }}</span>
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
-                                <span>{{ slides[locale].slide2.kpi2 }}</span>
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
-                                <span>{{ slides[locale].slide2.kpi3 }}</span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 3: KANBAN WORKSPACE (SNAPSHOT MOCK-UP) -->
-            <div v-if="currentSlide === 3" class="w-full flex flex-col py-2 relative z-10">
-                <div class="text-center max-w-2xl mx-auto mb-6 space-y-1">
-                    <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide3.badge }}</span>
-                    <h2 class="text-3xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide3.title }}
-                    </h2>
-                    <p class="text-base font-medium" :class="isDark ? 'text-slate-400' : 'text-slate-600'">
-                        {{ slides[locale].slide3.subtitle }}
-                    </p>
-                </div>
-
-                <div class="w-full rounded-3xl border overflow-hidden shadow-2xl p-6 space-y-4"
-                     :class="isDark ? 'bg-[#0c1221] border-slate-800' : 'bg-white border-slate-200'"
+                <!-- LEFT SIDE: LAB GUIDE & STATUS -->
+                <div class="flex flex-col justify-between space-y-6 rounded-[32px] p-6 lg:p-8 border backdrop-blur-md"
+                     :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-lg'"
                 >
-                    <div class="flex justify-between items-center pb-3 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
-                        <span class="text-sm font-bold" :class="isDark ? 'text-slate-350' : 'text-slate-800'">
-                            {{ locale === 'en' ? 'Employee Board' : 'የሰራተኛው የስራ ሰሌዳ' }}: <strong>Zerihun Abebe</strong>
+                    <div class="space-y-4">
+                        <span class="text-xs font-black uppercase text-indigo-400 tracking-widest block font-outfit">
+                            {{ locale === 'en' ? `Lab Exercise ${currentStep} of 3` : `ተግባራዊ ልምምድ ${currentStep} ከ 3` }}
                         </span>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <!-- Col 1 -->
-                        <div class="rounded-2xl p-3 border space-y-2.5" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-200'">
-                            <span class="text-xs font-black uppercase text-amber-500 block border-b pb-1" :class="isDark ? 'border-amber-500/20' : 'border-amber-500/10'">
-                                {{ slides[locale].slide3.col1 }}
-                            </span>
-                            <div class="rounded-xl p-3 border border-l-4 border-l-amber-500 space-y-1" :class="isDark ? 'bg-[#121a2e] border-slate-800' : 'bg-white border-slate-250 shadow-sm'">
-                                <h4 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Zenith PLC</h4>
-                                <p class="text-xs" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ locale === 'en' ? 'Missing TIN Scan' : 'የግብር ቁጥር ስካን የለም' }}</p>
-                            </div>
-                        </div>
-
-                        <!-- Col 2 -->
-                        <div class="rounded-2xl p-3 border space-y-2.5" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-200'">
-                            <span class="text-xs font-black uppercase text-blue-500 block border-b pb-1" :class="isDark ? 'border-blue-500/20' : 'border-blue-500/10'">
-                                {{ slides[locale].slide3.col2 }}
-                            </span>
-                            <div class="rounded-xl p-3 border border-l-4 border-l-emerald-500 space-y-1" :class="isDark ? 'bg-[#121a2e] border-slate-800' : 'bg-white border-slate-250 shadow-sm'">
-                                <h4 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Alpha Traders</h4>
-                                <p class="text-xs" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ locale === 'en' ? 'Collect Bank receipts' : 'የባንክ ደረሰኞች መሰብሰብ' }}</p>
-                            </div>
-                        </div>
-
-                        <!-- Col 3 -->
-                        <div class="rounded-2xl p-3 border space-y-2.5" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-200'">
-                            <span class="text-xs font-black uppercase text-purple-500 block border-b pb-1" :class="isDark ? 'border-purple-500/20' : 'border-purple-500/10'">
-                                {{ slides[locale].slide3.col3 }}
-                            </span>
-                            <div class="rounded-xl p-3 border border-l-4 border-l-purple-500 space-y-1" :class="isDark ? 'bg-[#121a2e] border-slate-800' : 'bg-white border-slate-250 shadow-sm'">
-                                <h4 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Nile Import-Export</h4>
-                                <p class="text-xs" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ locale === 'en' ? 'Audit Finished' : 'የኦዲት ስራው አልቋል' }}</p>
-                            </div>
-                        </div>
-
-                        <!-- Col 4 -->
-                        <div class="rounded-2xl p-3 border space-y-2.5" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-50 border-slate-200'">
-                            <span class="text-xs font-black uppercase text-emerald-500 block border-b pb-1" :class="isDark ? 'border-emerald-500/20' : 'border-emerald-500/10'">
-                                {{ slides[locale].slide3.col4 }}
-                            </span>
-                            <div class="rounded-xl p-3 border border-l-4 border-l-emerald-500 opacity-60 space-y-1" :class="isDark ? 'bg-[#121a2e] border-slate-800' : 'bg-white border-slate-250 shadow-sm'">
-                                <h4 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Haddis Shop</h4>
-                                <p class="text-xs" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ locale === 'en' ? 'Archived' : 'ሂሳቡ ተጠናቋል' }}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-sm text-indigo-400 font-bold">
-                        {{ slides[locale].slide3.tip }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 4: WORKLOAD CAPACITY & INTERACTIVE STRESS METER (Highly graphical!) -->
-            <div v-if="currentSlide === 4" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide4.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide4.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-600'">
-                        {{ slides[locale].slide4.subtitle }}
-                    </p>
-                    
-                    <!-- Stress meter controllers -->
-                    <div class="p-6 rounded-[28px] border space-y-4"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'"
-                    >
-                        <h4 class="text-base font-black uppercase tracking-wider" :class="isDark ? 'text-slate-300' : 'text-slate-800'">
-                            {{ slides[locale].slide4.boxSub }}
-                        </h4>
                         
-                        <div class="space-y-3 text-sm">
-                            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-slate-500/10 rounded-xl transition-colors">
-                                <input type="checkbox" v-model="hasClientA" class="h-5 w-5 accent-indigo-600 cursor-pointer rounded">
-                                <span :class="isDark ? 'text-slate-200' : 'text-slate-800'">{{ slides[locale].slide4.c1 }}</span>
-                            </label>
+                        <h2 class="text-2xl lg:text-3xl font-black font-outfit tracking-tight"
+                            :class="isDark ? 'text-white' : 'text-slate-900'"
+                        >
+                            {{ content[locale][`lab${currentStep}`].guideTitle }}
+                        </h2>
+                        
+                        <p class="text-sm font-medium leading-relaxed" :class="isDark ? 'text-slate-300' : 'text-slate-650'">
+                            {{ content[locale][`lab${currentStep}`].intro }}
+                        </p>
+                        
+                        <!-- Objective panel -->
+                        <div class="p-5 rounded-2xl space-y-2.5" :class="isDark ? 'bg-slate-950/40 border border-slate-850' : 'bg-slate-50 border border-slate-200'">
+                            <h4 class="text-xs font-black uppercase tracking-wider" :class="isDark ? 'text-slate-400' : 'text-slate-700'">
+                                {{ content[locale][`lab${currentStep}`].instructionTitle }}
+                            </h4>
+                            <ul class="space-y-2 text-xs font-semibold leading-relaxed" :class="isDark ? 'text-slate-400' : 'text-slate-600'">
+                                <li>{{ content[locale][`lab${currentStep}`].inst1 }}</li>
+                                <li>{{ content[locale][`lab${currentStep}`].inst2 }}</li>
+                                <li>{{ content[locale][`lab${currentStep}`].inst3 }}</li>
+                            </ul>
+                        </div>
 
-                            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-slate-500/10 rounded-xl transition-colors">
-                                <input type="checkbox" v-model="hasClientB" class="h-5 w-5 accent-indigo-600 cursor-pointer rounded">
-                                <span :class="isDark ? 'text-slate-200' : 'text-slate-800'">{{ slides[locale].slide4.c2 }}</span>
-                            </label>
+                        <!-- LAB 3 DATA FORM -->
+                        <div v-if="currentStep === 3" class="space-y-3 pt-2">
+                            <div class="space-y-1">
+                                <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].lab3.tinLabel }}</label>
+                                <input type="text" v-model="inputTin" placeholder="e.g. 0928301840" 
+                                       class="w-full bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold font-mono text-sm outline-none transition-all"
+                                       :class="isDark ? 'border-slate-800 text-white focus:border-indigo-500' : 'border-slate-250 text-slate-900 focus:border-indigo-500'"
+                                       :disabled="lab3Passed"
+                                >
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].lab3.legalLabel }}</label>
+                                <select v-model="inputLegal" 
+                                        class="w-full bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold text-sm outline-none transition-all"
+                                        :class="isDark ? 'border-slate-800 text-white focus:border-indigo-500' : 'border-slate-250 text-slate-900 focus:border-indigo-500'"
+                                        :disabled="lab3Passed"
+                                >
+                                    <option value="" disabled>{{ locale === 'en' ? 'Select Legal Type' : 'የህግ መዋቅር ይምረጡ' }}</option>
+                                    <option value="PLC">PLC (Private Limited Company)</option>
+                                    <option value="Sole">Sole Proprietorship</option>
+                                    <option value="Share">Share Company</option>
+                                </select>
+                            </div>
+                            <button v-if="!lab3Passed" @click="validateLab3" 
+                                    class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
+                            >
+                                {{ content[locale].lab3.validateBtn }}
+                            </button>
+                            <p v-if="lab3Error" class="text-xs font-bold text-rose-500">{{ lab3Error }}</p>
+                        </div>
+                    </div>
 
-                            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-slate-500/10 rounded-xl transition-colors">
-                                <input type="checkbox" v-model="hasErrand" class="h-5 w-5 accent-indigo-600 cursor-pointer rounded">
-                                <span :class="isDark ? 'text-slate-200' : 'text-slate-800'">{{ slides[locale].slide4.c3 }}</span>
-                            </label>
-
-                            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-slate-500/10 rounded-xl transition-colors">
-                                <input type="checkbox" v-model="hasProject" class="h-5 w-5 accent-indigo-600 cursor-pointer rounded">
-                                <span :class="isDark ? 'text-slate-200' : 'text-slate-800'">{{ slides[locale].slide4.c4 }}</span>
-                            </label>
+                    <!-- SUCCESS DIALOG & PROGRESS BUTTON -->
+                    <div class="pt-4 border-t" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                        <div v-if="(currentStep === 1 && lab1Passed) || (currentStep === 2 && lab2Passed) || (currentStep === 3 && lab3Passed)" 
+                             class="p-4 mb-4 rounded-2xl border text-xs font-bold text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+                        >
+                            {{ content[locale][`lab${currentStep}`].successMsg }}
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <button @click="currentStep--" 
+                                    class="px-4 py-2.5 rounded-xl border text-xs font-bold uppercase transition-all"
+                                    :class="isDark ? 'border-slate-800 text-slate-400 hover:bg-slate-900' : 'border-slate-250 text-slate-600 hover:bg-slate-100'"
+                            >
+                                {{ locale === 'en' ? 'Back' : 'ተመለስ' }}
+                            </button>
+                            
+                            <button @click="currentStep++" 
+                                    :disabled="!(currentStep === 1 ? lab1Passed : currentStep === 2 ? lab2Passed : lab3Passed)"
+                                    class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
+                            >
+                                {{ locale === 'en' ? 'Next Lab' : 'ቀጣይ ላብ' }}
+                                <ChevronRightIcon class="h-3.5 w-3.5" />
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <!-- Interactive Stress Visualizer (Wow element) -->
-                    <div class="w-full max-w-md shadow-2xl rounded-[36px] p-8 border space-y-6 text-center transform hover:scale-[1.01] transition-all"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-250 shadow-xl'"
-                    >
-                        <h4 class="text-base font-black uppercase tracking-wider" :class="isDark ? 'text-slate-300' : 'text-slate-900'">
-                            {{ slides[locale].slide4.boxTitle }}
-                        </h4>
-
-                        <!-- Load Computation -->
-                        <div class="py-4">
-                            <span class="text-slate-500 block uppercase text-xs font-bold tracking-widest">{{ locale === 'en' ? 'Combined Load Pts' : 'የተጠራቀመ የስራ ነጥብ' }}</span>
-                            <span class="text-5xl font-black font-outfit tracking-tighter"
-                                  :class="[
-                                      (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 60 ? 'text-rose-500' : 
-                                      (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 40 ? 'text-amber-500' : 'text-indigo-400'
-                                  ]"
-                            >
-                                {{ hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15 }} Pts
-                            </span>
+                <!-- RIGHT SIDE: SIMULATED OPERATIONS SANDBOX -->
+                <div class="rounded-[32px] p-6 lg:p-8 border flex flex-col justify-center relative overflow-hidden"
+                     :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-250 shadow-md'"
+                >
+                    
+                    <!-- LAB 1 SANDBOX: TASK BOARD -->
+                    <div v-if="currentStep === 1" class="space-y-6 w-full">
+                        <div class="flex justify-between items-center pb-2 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">{{ content[locale].lab1.panelTitle }}</span>
+                            <span class="text-xs font-bold" :class="isDark ? 'text-slate-400' : 'text-slate-700'">80 Pts Capacity Limit</span>
                         </div>
 
-                        <!-- Interactive Stress Bar -->
+                        <!-- STRESS METER WIDGET -->
                         <div class="space-y-2">
-                            <div class="w-full bg-slate-500/15 rounded-full h-4 overflow-hidden p-0.5 border" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            <div class="flex justify-between items-center text-xs font-black uppercase">
+                                <span :class="isDark ? 'text-slate-350' : 'text-slate-750'">{{ content[locale].lab1.stressLabel }}</span>
+                                <span :class="[
+                                    lab1Stress >= 60 ? 'text-rose-500' : 
+                                    lab1Stress >= 50 ? 'text-amber-500' : 'text-emerald-500'
+                                ]" class="font-outfit text-base font-extrabold">
+                                    {{ lab1Stress }} / 80 Pts
+                                </span>
+                            </div>
+                            <div class="w-full bg-slate-500/15 rounded-full h-3 overflow-hidden p-0.5 border" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
                                 <div class="h-full rounded-full transition-all duration-500 bg-gradient-to-r"
                                      :class="[
-                                         (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 60 ? 'from-orange-500 to-rose-600' : 
-                                         (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 40 ? 'from-yellow-400 to-amber-500' : 'from-blue-500 to-indigo-600'
+                                         lab1Stress >= 60 ? 'from-orange-500 to-rose-600' : 
+                                         lab1Stress >= 50 ? 'from-yellow-400 to-amber-500' : 'from-emerald-500 to-teal-500'
                                      ]"
-                                     :style="`width: ${Math.min(100, Math.round(((hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) / 80) * 100))}%`"
+                                     :style="`width: ${Math.round((lab1Stress / 80) * 100)}%`"
                                 ></div>
                             </div>
-                            <div class="flex justify-between text-xs text-slate-500 font-bold uppercase">
-                                <span>{{ locale === 'en' ? '0 Pts (Chill)' : '0 ነጥብ' }}</span>
-                                <span>{{ locale === 'en' ? '80 Pts (Max)' : '80 ነጥብ' }}</span>
-                            </div>
-                        </div>
-
-                        <!-- Emotion Indicator -->
-                        <div class="p-5 rounded-2xl transition-all duration-300 font-black text-base"
-                             :class="[
-                                 (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 60 ? (isDark ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' : 'bg-rose-100 border border-rose-250 text-rose-700') : 
-                                 (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 40 ? (isDark ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400' : 'bg-amber-100 border border-amber-250 text-amber-700') : 
-                                 (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) > 0 ? (isDark ? 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400' : 'bg-indigo-100 border border-indigo-250 text-indigo-700') :
-                                 (isDark ? 'bg-slate-800/40 text-slate-400 border border-slate-800' : 'bg-slate-100 text-slate-500 border border-slate-200')
-                             ]"
-                        >
-                            {{ slides[locale].slide4.stressLabel }} <br/>
-                            <span class="text-lg">
+                            <div class="text-[10px] font-bold text-center uppercase tracking-wide py-1.5 rounded-lg"
+                                 :class="[
+                                     lab1Stress >= 60 ? (isDark ? 'text-rose-400 bg-rose-500/10' : 'text-rose-700 bg-rose-100') : 
+                                     lab1Stress >= 50 ? (isDark ? 'text-amber-400 bg-amber-500/10' : 'text-amber-700 bg-amber-100') :
+                                     (isDark ? 'text-emerald-400 bg-emerald-500/10' : 'text-emerald-700 bg-emerald-100')
+                                 ]"
+                            >
                                 {{ 
-                                    (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 60 ? slides[locale].slide4.stressed : 
-                                    (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) >= 40 ? slides[locale].slide4.busy : 
-                                    (hasClientA * 30 + hasClientB * 15 + hasErrand * 10 + hasProject * 15) > 0 ? slides[locale].slide4.happy : 
-                                    slides[locale].slide4.optimal 
+                                    lab1Stress >= 60 ? content[locale].lab1.stressed : 
+                                    lab1Stress >= 50 ? content[locale].lab1.busy : 
+                                    content[locale].lab1.happy 
                                 }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 5: ATTENTION REQUIRED RADAR -->
-            <div v-if="currentSlide === 5" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide5.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide5.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide5.subtitle }}
-                    </p>
-
-                    <div class="space-y-4">
-                        <div class="flex gap-4 items-start p-4 rounded-2xl" :class="isDark ? 'bg-slate-900/30' : 'bg-white border shadow-sm'">
-                            <span class="text-2xl shrink-0">🚨</span>
-                            <div>
-                                <h5 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide5.red }}</h5>
-                                <p class="text-sm mt-0.5" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide5.redDesc }}</p>
                             </div>
                         </div>
-                        <div class="flex gap-4 items-start p-4 rounded-2xl" :class="isDark ? 'bg-slate-900/30' : 'bg-white border shadow-sm'">
-                            <span class="text-2xl shrink-0">⚠️</span>
-                            <div>
-                                <h5 class="font-bold text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide5.yellow }}</h5>
-                                <p class="text-sm mt-0.5" :class="isDark ? 'text-slate-400' : 'text-slate-600'">{{ slides[locale].slide5.yellowDesc }}</p>
+
+                        <!-- KANBAN COLUMNS -->
+                        <div class="space-y-4 pt-2">
+                            <h4 class="text-xs font-black uppercase text-slate-500">{{ content[locale].lab1.boardTitle }}</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                
+                                <!-- Pending Docs Column -->
+                                <div class="p-3 rounded-2xl border space-y-3 min-h-[160px]" :class="isDark ? 'bg-slate-950/20 border-slate-800' : 'bg-slate-50 border-slate-200'">
+                                    <span class="text-[10px] font-black uppercase text-blue-500 border-b pb-1 block">{{ content[locale].lab1.pendingCol }}</span>
+                                    
+                                    <!-- Zenith (Red Urgent) Card -->
+                                    <div v-if="lab1TaskState === 'pending'"
+                                         class="p-3 border border-l-4 border-l-rose-500 rounded-xl space-y-2 shadow-sm transition-all"
+                                         :class="isDark ? 'bg-[#121926] border-slate-850' : 'bg-white border-slate-250'"
+                                    >
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Zenith PLC</span>
+                                            <span class="text-[8px] font-black text-rose-500 uppercase">{{ content[locale].lab1.redBadge }}</span>
+                                        </div>
+                                        <p class="text-[10px]" :class="isDark ? 'text-slate-400' : 'text-slate-500'">Value: 30 Pts. Audit file submission.</p>
+                                        <button @click="lab1TaskState = 'review'" 
+                                                class="w-full py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                        >
+                                            {{ content[locale].lab1.moveBtn }}
+                                        </button>
+                                    </div>
+
+                                    <!-- Haddis Shop (Low Priority) Card -->
+                                    <div class="p-3 border border-l-4 border-l-slate-400 rounded-xl space-y-2 shadow-sm transition-all"
+                                         :class="isDark ? 'bg-[#121926] border-slate-850' : 'bg-white border-slate-250'"
+                                    >
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Haddis Shop</span>
+                                            <span class="text-[8px] font-black text-slate-500 uppercase">{{ content[locale].lab1.yellowBadge }}</span>
+                                        </div>
+                                        <p class="text-[10px]" :class="isDark ? 'text-slate-400' : 'text-slate-500'">Value: 15 Pts. Receipt logs.</p>
+                                        
+                                        <button v-if="!lab1Delegated" @click="lab1Delegated = true" 
+                                                class="w-full py-1.5 bg-slate-500/10 hover:bg-slate-500/20 text-slate-400 hover:text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                                        >
+                                            {{ content[locale].lab1.delegateBtn }}
+                                        </button>
+                                        <span v-else class="block text-center py-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-[8px] font-black uppercase tracking-wider">
+                                            {{ content[locale].lab1.delegatedBadge }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Under Review Column -->
+                                <div class="p-3 rounded-2xl border space-y-3 min-h-[160px]" :class="isDark ? 'bg-slate-950/20 border-slate-800' : 'bg-slate-50 border-slate-200'">
+                                    <span class="text-[10px] font-black uppercase text-purple-500 border-b pb-1 block">{{ content[locale].lab1.reviewCol }}</span>
+                                    
+                                    <!-- Zenith (Review State) Card -->
+                                    <div v-if="lab1TaskState === 'review'"
+                                         class="p-3 border border-l-4 border-l-purple-500 rounded-xl space-y-2 shadow-sm transition-all animate-fade-in"
+                                         :class="isDark ? 'bg-[#121926] border-slate-850' : 'bg-white border-slate-250'"
+                                    >
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">Zenith PLC</span>
+                                            <span class="text-[8px] font-black text-purple-400 uppercase">WAITING REVIEW</span>
+                                        </div>
+                                        <p class="text-[10px]" :class="isDark ? 'text-slate-450' : 'text-slate-500'">Manager is inspecting files...</p>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm border rounded-[32px] p-6 space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-red-500/10' : 'bg-white border-red-200'"
-                    >
-                        <div class="flex items-center gap-2 text-xs font-black text-rose-500 uppercase tracking-widest pb-2 border-b"
-                             :class="isDark ? 'border-red-500/10' : 'border-red-100'"
+                    <!-- LAB 2 SANDBOX: ERRAND TRIP TRACKER -->
+                    <div v-if="currentStep === 2" class="space-y-6 w-full flex flex-col items-center justify-center">
+                        <div class="w-full max-w-sm rounded-[32px] border-4 border-slate-800 overflow-hidden shadow-2xl relative"
+                             :class="isDark ? 'bg-[#0f1524]' : 'bg-white'"
                         >
-                            <span class="h-2 w-2 rounded-full bg-rose-500 animate-ping"></span>
-                            {{ locale === 'en' ? 'Critical Alerts' : 'አስቸኳይ ጥቆማዎች' }}
-                        </div>
-                        
-                        <div class="p-3 border rounded-2xl border-l-8 border-l-red-500 space-y-1 shadow-sm"
-                             :class="isDark ? 'bg-red-950/10 border-slate-800' : 'bg-red-50/50 border-red-100'"
-                        >
-                            <h4 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-950'">Abay Trading PLC</h4>
-                            <p class="text-xs text-rose-500 font-bold">{{ locale === 'en' ? '⚠️ Late 3 Days' : '⚠️ 3 ቀን ዘግይቷል' }}</p>
-                        </div>
-
-                        <div class="p-3 border rounded-2xl border-l-8 border-l-yellow-500 space-y-1 shadow-sm"
-                             :class="isDark ? 'bg-yellow-950/10 border-slate-800' : 'bg-yellow-50/50 border-yellow-100'"
-                        >
-                            <h4 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-950'">Awash Coffee exports</h4>
-                            <p class="text-xs text-amber-500 font-bold">{{ locale === 'en' ? '⚠️ Due in 24 Hours' : '⚠️ በ24 ሰዓት ውስጥ ይደርሳል' }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SLIDE 6: DAILY TASKS & ERRANDS (Interactive errands panel) -->
-            <div v-if="currentSlide === 6" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide6.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide6.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide6.subtitle }}
-                    </p>
-                    
-                    <div class="p-5 rounded-2xl border text-sm transition-colors"
-                         :class="isDark ? 'bg-indigo-950/20 border-indigo-950/40' : 'bg-indigo-50 border-indigo-100'"
-                    >
-                        {{ slides[locale].slide6.tip }}
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 space-y-4">
-                    <div class="rounded-3xl p-6 border space-y-4"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-lg'"
-                    >
-                        <h4 class="text-xs font-black uppercase tracking-wider text-slate-500">
-                            {{ locale === 'en' ? 'ERRAND LIST MOCKUP' : 'የእለታዊ ስራዎች ማሳያ' }}
-                        </h4>
-                        
-                        <div v-for="task in localDailyTasks" :key="task.id" 
-                             @click="advanceDailyStatus(task)"
-                             class="flex items-center justify-between p-4 border rounded-2xl cursor-pointer hover:scale-[1.02] active:scale-95 transition-all"
-                             :class="isDark ? 'bg-slate-900/80 border-slate-800 hover:bg-slate-800' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 shadow-sm'"
-                        >
-                            <div class="flex items-center gap-3">
-                                <span class="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg shrink-0">{{ task.icon }}</span>
-                                <div>
-                                    <h5 class="text-sm font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">{{ task.title }}</h5>
-                                    <p class="text-[10px]" :class="isDark ? 'text-slate-400' : 'text-slate-500'">{{ task.location }}</p>
+                            <!-- Mobile status bar -->
+                            <div class="bg-slate-800 py-1.5 px-4 flex justify-between items-center text-[10px] font-bold text-slate-400">
+                                <span>GGAA Mobile OS</span>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>GPS connected</span>
                                 </div>
                             </div>
-                            <span class="px-3 py-1 text-xs font-black rounded-full border transition-all"
-                                  :class="[
-                                      task.status === 'pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
-                                      task.status === 'in_progress' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 
-                                      'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                                  ]"
-                            >
-                                {{ task.status === 'pending' ? (locale === 'en' ? 'Pending' : 'የሚጠበቅ') : task.status === 'in_progress' ? (locale === 'en' ? 'In Progress' : 'በሂደት ላይ') : (locale === 'en' ? 'Done' : 'ተጠናቀቀ') }}
-                            </span>
+
+                            <!-- Mobile Body -->
+                            <div class="p-6 space-y-6">
+                                <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider text-center">{{ content[locale].lab2.mobileTitle }}</h4>
+                                
+                                <div class="border rounded-2xl p-4 space-y-4" :class="isDark ? 'bg-slate-950/40 border-slate-850' : 'bg-slate-50 border-slate-200'">
+                                    <div class="flex items-center gap-3">
+                                        <span class="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">🚗</span>
+                                        <div>
+                                            <h5 class="text-sm font-black" :class="isDark ? 'text-white' : 'text-slate-950'">{{ content[locale].lab2.errandTitle }}</h5>
+                                            <p class="text-[10px] text-slate-500 font-medium">{{ content[locale].lab2.errandLoc }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-1.5 border-t pt-3" :class="isDark ? 'border-slate-850' : 'border-slate-200'">
+                                        <span class="text-[9px] uppercase font-black text-slate-500">Status</span>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-black uppercase"
+                                                  :class="[
+                                                      lab2State === 'ready' ? 'text-amber-500' :
+                                                      lab2State === 'traveling' ? 'text-blue-500' : 'text-emerald-500'
+                                                  ]"
+                                            >
+                                                {{ 
+                                                    lab2State === 'ready' ? content[locale].lab2.stateReady :
+                                                    lab2State === 'traveling' ? content[locale].lab2.stateTraveling :
+                                                    lab2State === 'arrived' ? content[locale].lab2.stateArrived :
+                                                    content[locale].lab2.stateDone
+                                                }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Traveling progress bar -->
+                                    <div v-if="lab2State === 'traveling'" class="space-y-1.5 animate-fade-in">
+                                        <div class="w-full bg-slate-500/15 rounded-full h-2.5 overflow-hidden border" :class="isDark ? 'border-slate-800' : 'border-slate-250'">
+                                            <div class="h-full bg-blue-500 rounded-full transition-all duration-300" :style="`width: ${travelProgress}%`"></div>
+                                        </div>
+                                        <span class="text-[9px] text-slate-500 font-bold block text-right">GPS: {{ travelProgress }}%</span>
+                                    </div>
+
+                                    <button v-if="lab2State === 'ready'" @click="startTravel" 
+                                            class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
+                                    >
+                                        {{ content[locale].lab2.startBtn }}
+                                    </button>
+
+                                    <button v-if="lab2State === 'arrived'" @click="completeErrand" 
+                                            class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all animate-bounce"
+                                    >
+                                        {{ content[locale].lab2.deliverBtn }}
+                                    </button>
+
+                                    <div v-if="lab2State === 'completed'" class="p-3 bg-emerald-500/15 border border-emerald-500/20 text-emerald-500 text-center rounded-xl text-[11px] font-black uppercase animate-pulse">
+                                        {{ locale === 'en' ? 'Errand Log Succeeded!' : 'የጉዞ መዝገብ በተሳካ ሁኔታ ተጠናቋል!' }}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- LAB 3 SANDBOX: TIN & REGISTRATION VERIFICATION -->
+                    <div v-if="currentStep === 3" class="space-y-4 w-full flex flex-col justify-center">
+                        <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider pb-1 border-b" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                            {{ locale === 'en' ? 'OFFICIAL REGISTRATION LICENSE (DOCUMENT SEARCH)' : 'ይፋዊ የንግድ ምዝገባ ምስክር ወረቀት' }}
+                        </h4>
+
+                        <!-- Certificate Mock UI -->
+                        <div class="rounded-3xl border-4 p-6 space-y-4 shadow-lg select-none relative overflow-hidden"
+                             :class="isDark 
+                                 ? 'bg-slate-900 border-amber-500/20 text-slate-350 shadow-amber-500/5' 
+                                 : 'bg-amber-50/50 border-amber-300 text-slate-800'"
+                        >
+                            <!-- Seal stamp -->
+                            <div class="absolute -right-6 -bottom-6 w-32 h-32 rounded-full border-4 border-red-500/25 flex items-center justify-center rotate-12 font-black uppercase text-[10px] text-red-500/25 text-center p-2">
+                                Ministry of Trade & Industry
+                            </div>
+
+                            <div class="text-center pb-2 border-b" :class="isDark ? 'border-slate-800' : 'border-amber-250'">
+                                <h3 class="text-base font-extrabold uppercase font-outfit text-amber-500">Ministry of Trade</h3>
+                                <p class="text-[9px] uppercase font-black text-slate-500">Federal Democratic Republic of Ethiopia</p>
+                            </div>
+
+                            <div class="space-y-2.5 text-xs font-semibold leading-relaxed">
+                                <div class="flex justify-between">
+                                    <span class="text-slate-500">{{ locale === 'en' ? 'Business Name:' : 'የድርጅት ስም:' }}</span>
+                                    <span class="font-extrabold" :class="isDark ? 'text-white' : 'text-slate-900'">Awash Coffee Exports PLC</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-500">TIN Number (10-Digit):</span>
+                                    <span class="font-black font-mono text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded">0928301840</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-500">{{ locale === 'en' ? 'Company Type:' : 'የህግ መዋቅር:' }}</span>
+                                    <span class="font-bold text-amber-500">Private Limited Company (PLC)</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-500">{{ locale === 'en' ? 'Capital Registered:' : 'ካፒታል:' }}</span>
+                                    <span>500,000.00 ETB</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            <!-- SLIDE 7: SQUAD COLLABORATION & PROJECTS -->
-            <div v-if="currentSlide === 7" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10 animate-fade-in">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide7.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide7.title }}
+            <!-- STEP 4: GRADUATION -->
+            <div v-if="currentStep === 4" class="max-w-4xl mx-auto py-4 space-y-8 animate-fade-in relative z-10">
+                <!-- Pure-CSS Confetti Particles -->
+                <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div class="confetti-particle bg-indigo-500 top-0 left-[10%]"></div>
+                    <div class="confetti-particle bg-purple-500 top-0 left-[30%]"></div>
+                    <div class="confetti-particle bg-emerald-500 top-0 left-[50%]"></div>
+                    <div class="confetti-particle bg-yellow-500 top-0 left-[70%]"></div>
+                    <div class="confetti-particle bg-rose-500 top-0 left-[90%]"></div>
+                </div>
+
+                <div class="text-center space-y-4 max-w-2xl mx-auto">
+                    <span class="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/25 text-emerald-450 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest animate-pulse">
+                        <SparklesIcon class="h-4 w-4" />
+                        {{ content[locale].graduation.title }}
+                    </span>
+                    <h2 class="text-4xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-900'">
+                        {{ locale === 'en' ? 'You are Certified!' : 'የስልጠና ብቃት ማረጋገጫ ተሰጥቶዎታል!' }}
                     </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide7.subtitle }}
+                    <p class="text-base font-semibold" :class="isDark ? 'text-slate-400' : 'text-slate-600'">
+                        {{ content[locale].graduation.subtitle }}
                     </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-8 items-center">
                     
-                    <div class="space-y-4 font-medium text-sm">
-                        <div class="flex gap-3">
-                            <span class="text-xl">👑</span>
-                            <p :class="isDark ? 'text-slate-300' : 'text-slate-700'">{{ slides[locale].slide7.point1 }}</p>
-                        </div>
-                        <div class="flex gap-3">
-                            <span class="text-xl">⚖️</span>
-                            <p :class="isDark ? 'text-slate-300' : 'text-slate-700'">{{ slides[locale].slide7.point2 }}</p>
-                        </div>
-                        <div class="flex gap-3">
-                            <span class="text-xl">💬</span>
-                            <p :class="isDark ? 'text-slate-300' : 'text-slate-700'">{{ slides[locale].slide7.point3 }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="w-full lg:w-1/2 space-y-4">
-                    <div class="rounded-3xl p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'"
-                    >
-                        <div class="flex justify-between items-center border-b pb-3" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
-                            <div>
-                                <span class="text-[10px] bg-indigo-500/10 text-indigo-500 font-bold px-2 py-0.5 rounded uppercase">{{ locale === 'en' ? 'Audit Squad' : 'የኦዲት ቡድን' }}</span>
-                                <h4 class="text-base font-black mt-1" :class="isDark ? 'text-white' : 'text-slate-950'">Abay Textile Corp</h4>
+                    <!-- Left Column: Certificate Badge details & User Name Input -->
+                    <div class="md:col-span-2 space-y-6">
+                        <div class="p-6 rounded-[28px] border space-y-4" :class="isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-lg'">
+                            <span class="text-xs font-black uppercase text-slate-500 block">{{ content[locale].graduation.badgeLabel }}</span>
+                            <div class="flex items-center gap-4">
+                                <span class="h-16 w-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-3xl shadow-lg">⚡</span>
+                                <div>
+                                    <h4 class="font-black text-base" :class="isDark ? 'text-white' : 'text-slate-900'">{{ content[locale].graduation.badgeTitle }}</h4>
+                                    <p class="text-xs text-slate-500 font-semibold">{{ content[locale].graduation.badgeDesc }}</p>
+                                </div>
                             </div>
                         </div>
-                        
-                        <div class="space-y-2 text-xs">
-                            <span class="text-[10px] font-black text-slate-400 block uppercase">{{ locale === 'en' ? 'Team Members' : 'የቡድን አባላት' }}</span>
-                            <div class="flex gap-2">
-                                <span class="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-slate-800" title="Zerihun">ZA</span>
-                                <span class="h-8 w-8 rounded-full bg-purple-600 flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-slate-800" title="Lydia">LA</span>
-                                <span class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-slate-800" title="Kidus">KK</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- SLIDE 8: PERFORMANCE & REWARDS -->
-            <div v-if="currentSlide === 8" class="w-full flex flex-col lg:flex-row items-center justify-between gap-12 py-6 relative z-10">
-                <div class="w-full lg:w-1/2 space-y-6">
-                    <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide8.badge }}</span>
-                    <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                        {{ slides[locale].slide8.title }}
-                    </h2>
-                    <p class="text-lg leading-relaxed font-medium" :class="isDark ? 'text-slate-350' : 'text-slate-650'">
-                        {{ slides[locale].slide8.subtitle }}
-                    </p>
-                </div>
-
-                <div class="w-full lg:w-1/2 flex items-center justify-center">
-                    <div class="w-full max-w-sm rounded-[36px] p-6 border space-y-4 shadow-xl"
-                         :class="isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'"
-                    >
-                        <h4 class="text-sm font-black uppercase text-slate-500 text-center">{{ locale === 'en' ? 'Achievements Available' : 'የሚገኙ የክብር ባጆች' }}</h4>
-                        
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="p-4 border rounded-2xl text-center space-y-1 shadow-sm transition-transform hover:scale-105"
-                                 :class="isDark ? 'bg-slate-900 border-slate-850' : 'bg-slate-50 border-slate-200'"
+                        <!-- Name Edit Input -->
+                        <div class="space-y-2">
+                            <label class="text-xs font-black uppercase text-slate-500">{{ content[locale].graduation.certNameLabel }}</label>
+                            <input type="text" v-model="userName" 
+                                   class="w-full bg-slate-500/10 border px-4 py-2.5 rounded-xl font-bold text-sm outline-none transition-all"
+                                   :class="isDark ? 'border-slate-800 text-white focus:border-indigo-500' : 'border-slate-250 text-slate-900 focus:border-indigo-500'"
                             >
-                                <span class="text-3xl block">⚡</span>
-                                <h5 class="text-xs font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide8.b1Title }}</h5>
-                                <p class="text-[10px] text-slate-500 font-bold mt-1 uppercase">{{ slides[locale].slide8.b1Desc }}</p>
+                        </div>
+
+                        <Link href="/training" 
+                              class="w-full py-4 bg-indigo-650 hover:bg-indigo-700 text-white text-center font-black rounded-2xl text-xs uppercase tracking-wider transition-all block shadow-lg shadow-indigo-600/10 hover:-translate-y-0.5"
+                        >
+                            {{ content[locale].graduation.homeBtn }}
+                        </Link>
+                    </div>
+
+                    <!-- Right Column: Official Certificate Mockup -->
+                    <div class="md:col-span-3">
+                        <div class="rounded-[36px] border-8 p-8 relative overflow-hidden shadow-2xl text-center space-y-6"
+                             :class="isDark 
+                                 ? 'bg-[#0f1626] border-indigo-650/40 text-slate-350 shadow-indigo-500/5' 
+                                 : 'bg-white border-indigo-100 text-slate-700 shadow-xl'"
+                        >
+                            <!-- Seals & Decoration -->
+                            <div class="absolute top-4 left-4 h-10 w-10 border-t-2 border-l-2 border-indigo-500/30"></div>
+                            <div class="absolute top-4 right-4 h-10 w-10 border-t-2 border-r-2 border-indigo-500/30"></div>
+                            <div class="absolute bottom-4 left-4 h-10 w-10 border-b-2 border-l-2 border-indigo-500/30"></div>
+                            <div class="absolute bottom-4 right-4 h-10 w-10 border-b-2 border-r-2 border-indigo-500/30"></div>
+
+                            <div class="space-y-2">
+                                <span class="text-[9px] uppercase font-black text-indigo-500 tracking-widest">Certificate of Training</span>
+                                <h3 class="text-xl sm:text-2xl font-black font-outfit tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 uppercase">
+                                    {{ content[locale].graduation.certTitle }}
+                                </h3>
+                                <p class="text-xs uppercase font-extrabold text-slate-500">{{ content[locale].graduation.certSubtitle }}</p>
                             </div>
 
-                            <div class="p-4 border rounded-2xl text-center space-y-1 shadow-sm transition-transform hover:scale-105"
-                                 :class="isDark ? 'bg-slate-900 border-slate-850' : 'bg-slate-50 border-slate-200'"
-                            >
-                                <span class="text-3xl block">🛡️</span>
-                                <h5 class="text-xs font-bold" :class="isDark ? 'text-white' : 'text-slate-900'">{{ slides[locale].slide8.b2Title }}</h5>
-                                <p class="text-[10px] text-slate-500 font-bold mt-1 uppercase">{{ slides[locale].slide8.b2Desc }}</p>
+                            <div class="py-4 border-y border-slate-500/10">
+                                <span class="text-xs text-slate-500 block uppercase mb-1">PROUDLY PRESENTED TO</span>
+                                <span class="text-2xl sm:text-3xl font-black font-outfit" :class="isDark ? 'text-white' : 'text-slate-900'">
+                                    {{ userName }}
+                                </span>
+                            </div>
+
+                            <p class="text-[11px] leading-relaxed font-semibold max-w-md mx-auto">
+                                {{ content[locale].graduation.certBody }}
+                            </p>
+
+                            <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 pt-4 uppercase">
+                                <span>{{ content[locale].graduation.certDate }}</span>
+                                <span class="text-indigo-400 font-extrabold">GGAA Audit Academy</span>
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
 
-            <!-- SLIDE 9: INTERACTIVE CHECKLIST & NEXT STEPS -->
-            <div v-if="currentSlide === 9" class="w-full flex flex-col items-center justify-center py-6 text-center relative z-10 space-y-4 max-w-2xl animate-fade-in">
-                <span class="text-xs font-black tracking-widest text-indigo-400 uppercase">{{ slides[locale].slide9.badge }}</span>
-                <h2 class="text-3xl lg:text-5xl font-black font-outfit tracking-tight" :class="isDark ? 'text-white' : 'text-slate-950'">
-                    {{ slides[locale].slide9.title }}
-                </h2>
-                <p class="text-lg font-medium" :class="isDark ? 'text-slate-400' : 'text-slate-600'">
-                    {{ slides[locale].slide9.subtitle }}
-                </p>
-                
-                <div class="p-6 rounded-[32px] border text-left w-full max-w-lg mx-auto space-y-3 text-sm"
-                     :class="isDark ? 'bg-slate-900/60 border-slate-800 text-slate-350' : 'bg-white border-slate-250 text-slate-700 shadow-md'"
-                >
-                    <div v-for="item in checklistItems" :key="item.id" 
-                         @click="toggleCheck(item)"
-                         class="flex items-start gap-3 cursor-pointer select-none py-2 rounded-xl hover:bg-slate-500/10 px-3 transition-colors"
-                    >
-                        <input type="checkbox" :checked="item.checked" class="accent-indigo-650 h-5 w-5 shrink-0 rounded mt-0.5 cursor-pointer">
-                        <span :class="{'line-through text-slate-500': item.checked}">
-                            {{ locale === 'en' ? item.text_en : item.text_am }}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="pt-6">
-                    <button @click="goToSlide(1)" class="px-6 py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-2xl transition-all inline-flex items-center gap-2 text-xs uppercase tracking-widest">
-                        🔄 {{ locale === 'en' ? 'Restart Guide' : 'ድጋሚ ጀምር' }}
-                    </button>
-                </div>
-            </div>
         </main>
 
-        <!-- Slides Navigation Controls -->
-        <footer class="w-full py-6 px-6 lg:px-12 flex justify-between items-center border-t sticky bottom-0 z-50 transition-colors"
-                :class="isDark ? 'border-slate-800 bg-[#070b13]' : 'border-slate-200 bg-slate-100'"
+        <!-- Footer Operations Title -->
+        <footer class="w-full py-4 border-t transition-colors text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest"
+                :class="isDark ? 'border-slate-850 bg-[#080d16]' : 'border-slate-200 bg-slate-100'"
         >
-            <span class="text-xs font-bold" :class="isDark ? 'text-slate-500' : 'text-slate-600'">
-                {{ locale === 'en' ? 'GGAA Operations Guide' : 'ጂጂኤኤ የስራ መመሪያ' }}
-            </span>
-            
-            <div class="flex items-center gap-6">
-                <button @click="prevSlide" class="p-2.5 rounded-xl border hover:scale-105 active:scale-95 transition-all text-slate-400 hover:text-indigo-500"
-                        :class="isDark ? 'border-slate-800 hover:bg-slate-900' : 'border-slate-200 hover:bg-white'"
-                >
-                    <ChevronLeftIcon class="h-4 w-4" />
-                </button>
-                
-                <span class="text-sm font-bold tracking-wider font-outfit" :class="isDark ? 'text-slate-400' : 'text-slate-700'">
-                    {{ locale === 'en' ? 'Slide' : 'ስላይድ' }} <span class="text-indigo-500">{{ currentSlide }}</span> of <span>{{ totalSlides }}</span>
-                </span>
-                
-                <button @click="nextSlide" class="p-2.5 rounded-xl border hover:scale-105 active:scale-95 transition-all text-slate-400 hover:text-indigo-500"
-                        :class="isDark ? 'border-slate-800 hover:bg-slate-900' : 'border-slate-200 hover:bg-white'"
-                >
-                    <ChevronRightIcon class="h-4 w-4" />
-                </button>
-            </div>
-            
-            <div class="text-[11px] uppercase font-black hidden md:block" :class="isDark ? 'text-slate-600' : 'text-slate-400'">
-                GGAA Systems
-            </div>
+            GGAA Systems Portal • operations simulator
         </footer>
-
     </div>
 </template>
 
@@ -843,4 +837,25 @@ const slides = {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Custom pure-CSS Confetti Particles falling/rising */
+.confetti-particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: confetti-fall 4s linear infinite;
+    opacity: 0.7;
+}
+
+@keyframes confetti-fall {
+    0% { transform: translateY(-50px) rotate(0deg); opacity: 0.7; }
+    50% { opacity: 0.9; }
+    100% { transform: translateY(600px) rotate(360deg); opacity: 0; }
+}
+
+.confetti-particle:nth-child(2) { animation-delay: 0.8s; width: 10px; height: 10px; }
+.confetti-particle:nth-child(3) { animation-delay: 1.5s; width: 6px; height: 6px; }
+.confetti-particle:nth-child(4) { animation-delay: 2.2s; width: 9px; height: 9px; }
+.confetti-particle:nth-child(5) { animation-delay: 3s; width: 7px; height: 7px; }
 </style>
