@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             AchievementSeeder::class,
             DocumentTypeSeeder::class,
             EvaluationMetricSeeder::class,
+            DemoOperationalSeeder::class,
         ]);
     }
 }

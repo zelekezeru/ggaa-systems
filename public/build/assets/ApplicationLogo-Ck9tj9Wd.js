@@ -1,1 +1,0 @@
-import{_ as e}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{o as s,e as r,d as l}from"./app-jQ5NzBNu.js";const t={},c={class:"h-10 w-10 overflow-hidden rounded-full shadow-md"};function n(a,o){return s(),r("div",c,[...o[0]||(o[0]=[l("img",{src:"/logo.png",alt:"GGAA Logo",class:"h-full w-full object-cover"},null,-1)])])}const i=e(t,[["render",n]]);export{i as A};
